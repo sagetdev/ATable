@@ -1,0 +1,648 @@
+# BLUEPRINT — APPLICATION DE DÉCOUVERTE DE RESTAURANTS
+
+Version : 1.0  
+Plateforme cible : Android  
+Langue initiale : Français  
+Priorité : Données gratuites  
+Statut : Spécification initiale du projet
+
+---
+
+## 1. VISION DU PROJET
+
+Créer une application mobile permettant de découvrir les restaurants situés autour d'une position géographique choisie par l'utilisateur.
+
+L'application doit récupérer les restaurants disponibles dans un rayon personnalisable, les présenter dans une liste et sur une carte interactive, permettre de filtrer les résultats et afficher les menus lorsqu'ils sont disponibles.
+
+L'objectif est de proposer une expérience simple, rapide, moderne et fiable, sans imposer un abonnement payant pour utiliser les fonctionnalités principales.
+
+### Principes fondamentaux
+
+- Rechercher des restaurants à partir d'une position GPS ou d'une adresse.
+- Permettre de choisir librement le rayon de recherche.
+- Afficher les résultats sous forme de liste et de carte.
+- Proposer des filtres combinables.
+- Donner accès aux menus disponibles.
+- Privilégier les sources de données gratuites et autorisées.
+- Ne jamais inventer une note, un prix, un horaire ou un menu.
+- Concevoir une architecture évolutive permettant d'ajouter de nouvelles sources de données.
+
+---
+
+## 2. PLATEFORME ET TECHNOLOGIES
+
+### Application mobile
+
+- React Native.
+- Expo.
+- TypeScript.
+- Expo Router pour la navigation.
+- React Query / TanStack Query pour les requêtes et le cache côté client.
+- Une bibliothèque de gestion d'état légère si nécessaire.
+- AsyncStorage pour les préférences et favoris locaux.
+- Une solution cartographique compatible avec Android.
+
+L'application est conçue pour Android uniquement dans la V1. Le code doit rester suffisamment propre pour permettre une éventuelle extension à d'autres plateformes, sans les développer maintenant.
+
+### Backend
+
+- Node.js.
+- Express.
+- TypeScript.
+- API REST.
+- Validation des entrées.
+- Gestion des erreurs.
+- Cache des recherches.
+- Limitation des requêtes.
+- Journalisation des erreurs techniques.
+
+### Base de données
+
+PostgreSQL sera utilisé si la persistance des résultats, les menus ou les fonctionnalités futures le justifient.
+
+Le système devra distinguer les données temporaires en cache des données conservées durablement.
+
+### Sources de données initiales
+
+OpenStreetMap et Overpass API seront évalués comme première source de données géographiques.
+
+Les autres sources pourront être ajoutées ultérieurement, à condition que leurs licences, quotas et conditions d'utilisation soient compatibles avec l'application.
+
+La cartographie devra utiliser un fournisseur de tuiles adapté à une application mobile. Les services publics gratuits ne devront pas être considérés comme illimités.
+
+---
+
+## 3. FONCTIONNALITÉS PRINCIPALES
+
+### 3.1. Recherche géographique
+
+L'utilisateur peut :
+
+- Autoriser l'utilisation de sa position GPS.
+- Refuser la localisation et saisir une adresse manuellement.
+- Modifier le point de départ de sa recherche.
+- Choisir un rayon de recherche.
+- Relancer la recherche après modification du rayon.
+- Consulter les résultats sans créer de compte.
+
+Le rayon initial proposé sera de 5 km.
+
+Les distances prédéfinies seront :
+
+- 1 km.
+- 2 km.
+- 5 km.
+- 10 km.
+- 20 km.
+- 30 km.
+- 50 km.
+
+Une valeur personnalisée devra également être possible.
+
+La distance sera calculée à partir des coordonnées du point de départ et de celles du restaurant. Le système devra préciser si cette distance est calculée à vol d'oiseau ou selon un itinéraire routier.
+
+### 3.2. Liste des restaurants
+
+Chaque résultat pourra afficher :
+
+- Le nom du restaurant.
+- Une photo si elle est disponible et autorisée.
+- Le type de cuisine.
+- L'adresse.
+- La distance.
+- La note et le nombre d'avis, si disponibles.
+- La gamme de prix, si connue.
+- Le statut d'ouverture, uniquement si les horaires permettent de le déterminer.
+- Un accès à la fiche détaillée.
+- Un accès au menu lorsqu'il existe.
+- Un bouton pour ouvrir l'établissement sur la carte.
+
+Les informations manquantes seront masquées ou indiquées comme indisponibles.
+
+La liste devra gérer la pagination ou le chargement progressif pour les zones contenant beaucoup de restaurants.
+
+### 3.3. Carte interactive
+
+La carte permettra :
+
+- D'afficher les restaurants sous forme de marqueurs.
+- De sélectionner un marqueur.
+- D'afficher un aperçu du restaurant sélectionné.
+- D'ouvrir sa fiche détaillée.
+- De revenir à la liste.
+- De conserver les filtres actifs pendant le changement de vue.
+- De rechercher dans la zone visible sur la carte.
+
+Un bouton « Rechercher dans cette zone » permettra de lancer une nouvelle recherche après déplacement ou zoom de la carte.
+
+Les marqueurs devront rester lisibles lorsque plusieurs établissements sont proches.
+
+### 3.4. Filtres
+
+Les filtres devront pouvoir être combinés.
+
+Filtres prévus :
+
+- Type de cuisine.
+- Distance maximale.
+- Note minimale.
+- Gamme de prix.
+- Ouvert actuellement.
+- Disponibilité d'un menu.
+- Présence d'un site officiel.
+
+Les filtres seront appliqués aux résultats réellement disponibles.
+
+Un filtre fondé sur une information absente ne devra pas traiter cette absence comme une valeur négative certaine.
+
+Un bouton permettra de réinitialiser tous les filtres.
+
+### 3.5. Fiche détaillée d'un restaurant
+
+La fiche affichera, selon les données disponibles :
+
+- Nom.
+- Photos.
+- Type de cuisine.
+- Adresse complète.
+- Coordonnées géographiques.
+- Distance depuis le point de recherche.
+- Horaires.
+- Note et source de la note.
+- Gamme de prix.
+- Site officiel.
+- Menu.
+- Date de dernière vérification des informations lorsque celle-ci est connue.
+
+Des actions permettront d'ouvrir le site officiel, de consulter un itinéraire ou de visualiser le restaurant sur la carte.
+
+### 3.6. Menus
+
+Les menus constituent une fonctionnalité importante, mais leur couverture dépendra des sources disponibles.
+
+Trois situations sont prévues :
+
+1. Menu structuré disponible : afficher les plats, descriptions et prix connus.
+2. Menu disponible sur le site officiel : proposer un lien direct.
+3. Aucun menu trouvé : indiquer que le menu n'est pas disponible dans l'application.
+
+Chaque menu structuré devra posséder une source et, si possible, une date de mise à jour.
+
+Les prix devront être associés à une devise. Les informations anciennes ou incertaines ne devront pas être présentées comme garanties actuelles.
+
+L'application ne devra pas extraire automatiquement des données de sites tiers en violation de leurs conditions d'utilisation.
+
+### 3.7. Favoris locaux
+
+La V1 pourra permettre d'enregistrer des restaurants dans une liste de favoris.
+
+Les favoris seront conservés localement sur l'appareil, sans compte obligatoire.
+
+L'utilisateur pourra :
+
+- Ajouter un restaurant aux favoris.
+- Le retirer des favoris.
+- Consulter sa liste de favoris.
+- Ouvrir sa fiche depuis cette liste.
+
+Les favoris devront utiliser des identifiants stables et gérer les restaurants dont les informations évoluent.
+
+---
+
+## 4. NAVIGATION ET ÉCRANS
+
+### Écran 1 — Découverte
+
+Écran principal de l'application.
+
+Contenu :
+
+- Barre de recherche par adresse.
+- Indicateur de position actuelle.
+- Sélecteur de rayon.
+- Accès aux filtres.
+- Liste des restaurants.
+- Contrôle permettant de passer à la carte.
+- États de chargement, d'erreur et d'absence de résultats.
+
+### Écran 2 — Carte
+
+Contenu :
+
+- Carte interactive.
+- Marqueurs des restaurants.
+- Aperçu du restaurant sélectionné.
+- Bouton de recherche dans la zone visible.
+- Accès à la fiche détaillée.
+- Retour à la liste.
+
+### Écran 3 — Fiche restaurant
+
+Contenu :
+
+- Informations principales.
+- Photos disponibles.
+- Adresse et distance.
+- Horaires et notes disponibles.
+- Bouton d'itinéraire.
+- Site officiel.
+- Section consacrée au menu.
+- Actions liées aux favoris.
+
+### Écran 4 — Favoris
+
+Contenu :
+
+- Liste des restaurants enregistrés.
+- Accès aux fiches.
+- Suppression des favoris.
+
+### Écran 5 — Paramètres
+
+Contenu :
+
+- Rayon de recherche par défaut.
+- Préférences d'affichage.
+- Gestion de la localisation.
+- Informations sur les sources de données.
+- Politique de confidentialité.
+- Informations sur l'application.
+
+La navigation principale restera simple. Les filtres pourront être affichés dans une feuille modale plutôt que dans un écran supplémentaire.
+
+---
+
+## 5. ARCHITECTURE DU CODE
+
+### Frontend
+
+Frontend/src/app/
+- _layout.tsx
+- (tabs)/index.tsx
+- (tabs)/map.tsx
+- (tabs)/favorites.tsx
+- restaurant/[id].tsx
+- settings.tsx
+
+Frontend/src/components/
+- RestaurantCard.tsx
+- RestaurantList.tsx
+- RestaurantMap.tsx
+- SearchBar.tsx
+- SearchRadius.tsx
+- FilterSheet.tsx
+- RestaurantPreview.tsx
+- MenuSection.tsx
+- LoadingState.tsx
+- ErrorState.tsx
+- EmptyState.tsx
+
+Frontend/src/services/
+- api.ts
+- restaurant.service.ts
+- geolocation.service.ts
+- favorites.service.ts
+
+Frontend/src/hooks/
+- useRestaurants.ts
+- useRestaurantDetails.ts
+- useUserLocation.ts
+- useFavorites.ts
+
+Frontend/src/types/
+- restaurant.ts
+- menu.ts
+- search.ts
+
+Frontend/src/stores/
+- search.store.ts
+- filters.store.ts
+
+### Backend
+
+Backend/src/
+- server.ts
+- routes/
+  - restaurants.routes.ts
+  - menus.routes.ts
+  - health.routes.ts
+- controllers/
+  - restaurants.controller.ts
+  - menus.controller.ts
+- services/
+  - restaurant-search.service.ts
+  - restaurant-provider.service.ts
+  - menu.service.ts
+  - distance.service.ts
+- providers/
+  - openstreetmap.provider.ts
+- cache/
+  - search-cache.service.ts
+- schemas/
+  - restaurant.schema.ts
+  - search.schema.ts
+- middleware/
+  - error-handler.ts
+  - rate-limit.ts
+
+Les composants de présentation ne devront pas effectuer directement des requêtes vers Overpass. Toutes les recherches passeront par une couche de services centralisée.
+
+---
+
+## 6. API REST
+
+### GET /api/restaurants
+
+Recherche de restaurants selon la position et les critères fournis.
+
+Paramètres possibles :
+
+- lat : latitude.
+- lon : longitude.
+- radius : rayon en mètres.
+- cuisine : type de cuisine.
+- minRating : note minimale, si une source de notes est disponible.
+- priceLevel : gamme de prix, si connue.
+- openNow : ouverture actuelle, si les horaires sont connus.
+- hasMenu : présence d'un menu disponible.
+- page : numéro de page ou curseur de pagination.
+- sort : distance ou note.
+
+Réponse normalisée comprenant les restaurants, les informations disponibles sur les filtres et les métadonnées de pagination.
+
+### GET /api/restaurants/:id
+
+Récupération de la fiche détaillée d'un restaurant.
+
+### GET /api/restaurants/:id/menu
+
+Récupération des menus disponibles pour un établissement.
+
+### GET /api/health
+
+Vérification de l'état de fonctionnement de l'API.
+
+Les entrées devront être validées. Les coordonnées, le rayon, les paramètres de tri et les limites de pagination devront être encadrés.
+
+L'API devra retourner des erreurs compréhensibles et des statuts HTTP appropriés.
+
+---
+
+## 7. MODÈLE DE DONNÉES
+
+### Restaurant
+
+- id : identifiant interne.
+- source : fournisseur d'origine.
+- sourceId : identifiant dans la source.
+- name : nom.
+- latitude : latitude.
+- longitude : longitude.
+- address : adresse.
+- cuisine : type de cuisine.
+- website : site officiel.
+- openingHours : horaires disponibles.
+- priceLevel : gamme de prix.
+- rating : note, si disponible.
+- ratingSource : source de la note.
+- lastUpdatedAt : date de mise à jour connue.
+
+### Menu
+
+- id.
+- restaurantId.
+- sourceUrl.
+- currency.
+- lastUpdatedAt.
+- availabilityStatus.
+
+### MenuItem
+
+- id.
+- menuId.
+- name.
+- description.
+- price.
+- category.
+
+### SearchCache
+
+- id.
+- queryKey.
+- results.
+- createdAt.
+- expiresAt.
+
+Les contraintes d'unicité devront empêcher la création répétée du même établissement à partir d'une même source.
+
+La déduplication entre sources différentes devra s'appuyer sur plusieurs indices et éviter les fusions automatiques trop agressives.
+
+Les informations dérivées ou importées devront respecter les licences applicables et les règles de conservation des fournisseurs.
+
+---
+
+## 8. RECHERCHE, CACHE ET PERFORMANCES
+
+La recherche devra être conçue pour éviter les appels inutiles.
+
+Principes :
+
+- Regrouper les requêtes identiques.
+- Mettre en cache les résultats lorsque les conditions de la source le permettent.
+- Appliquer une durée de validité adaptée à chaque type de donnée.
+- Ne pas relancer la recherche à chaque mouvement mineur du curseur de rayon.
+- Utiliser un bouton de validation lorsque cela améliore l'expérience.
+- Limiter la taille des réponses.
+- Gérer les délais d'attente et les erreurs des fournisseurs.
+- Prévoir une stratégie de repli en cas d'indisponibilité.
+- Éviter les recherches géographiques trop larges sur les services publics partagés.
+
+Le cache du backend devra être distinct du cache des requêtes sur le téléphone.
+
+Les informations comme les horaires, les notes et les prix devront pouvoir avoir des durées de validité différentes.
+
+---
+
+## 9. DESIGN ET EXPÉRIENCE UTILISATEUR
+
+Direction artistique :
+
+- Interface moderne, propre et minimaliste.
+- Hiérarchie visuelle claire.
+- Cartes de restaurants lisibles.
+- Typographie cohérente.
+- Espacements réguliers.
+- Icônes homogènes.
+- Animations discrètes.
+- États de chargement soignés.
+- Mode clair et mode sombre si le temps de développement le permet.
+
+La priorité est de rendre la recherche rapide et compréhensible.
+
+L'utilisateur doit pouvoir modifier son rayon, appliquer un filtre ou ouvrir un restaurant sans naviguer dans de nombreux écrans.
+
+Les informations essentielles devront rester accessibles même lorsque les photos ne sont pas disponibles.
+
+L'interface devra prendre en compte les permissions refusées, les connexions lentes, les résultats incomplets et les erreurs de géolocalisation.
+
+---
+
+## 10. SÉCURITÉ ET CONFIDENTIALITÉ
+
+- Demander la permission de localisation uniquement lorsque nécessaire.
+- Permettre la saisie manuelle d'une adresse.
+- Ne pas conserver la position exacte sans raison fonctionnelle.
+- Ne pas intégrer de secret serveur dans l'application mobile.
+- Valider les paramètres reçus par l'API.
+- Limiter les abus et les requêtes excessives.
+- Ne pas journaliser inutilement les coordonnées précises des utilisateurs.
+- Documenter les fournisseurs de données et leurs conditions.
+- Préparer une politique de confidentialité avant publication.
+
+---
+
+## 11. PLAN DE DÉVELOPPEMENT
+
+### Phase 1 — Fondations
+
+- Créer le dépôt et les dossiers Frontend et Backend.
+- Configurer Expo, TypeScript et Expo Router.
+- Initialiser Express.
+- Définir les types partagés et les conventions de code.
+- Configurer les environnements et les variables nécessaires.
+- Ajouter un endpoint de santé.
+
+Critère de validation : l'application Android démarre et le backend répond correctement.
+
+### Phase 2 — Première recherche réelle
+
+- Intégrer le fournisseur géographique initial.
+- Ajouter la géolocalisation.
+- Ajouter la saisie d'adresse.
+- Développer le sélecteur de rayon.
+- Normaliser les résultats.
+- Calculer les distances.
+- Ajouter un premier cache.
+
+Critère de validation : une recherche affiche des restaurants réels dans la zone choisie.
+
+### Phase 3 — Liste et filtres
+
+- Développer les cartes de restaurants.
+- Ajouter les tris.
+- Ajouter les filtres disponibles.
+- Gérer les résultats vides.
+- Ajouter le chargement progressif.
+
+Critère de validation : les filtres produisent des résultats cohérents sans multiplier inutilement les appels externes.
+
+### Phase 4 — Carte interactive
+
+- Intégrer la carte.
+- Afficher les marqueurs.
+- Gérer la sélection d'un restaurant.
+- Synchroniser la liste et la carte.
+- Ajouter la recherche dans la zone visible.
+
+Critère de validation : un utilisateur peut passer de la liste à la carte sans perdre sa recherche.
+
+### Phase 5 — Fiches et menus
+
+- Développer la fiche détaillée.
+- Ajouter les liens vers les sites officiels.
+- Afficher les menus structurés disponibles.
+- Ajouter la provenance des informations.
+- Gérer les menus indisponibles.
+
+Critère de validation : chaque menu affiché est associé à une source identifiable.
+
+### Phase 6 — Qualité et préparation à la publication
+
+- Tester plusieurs rayons et positions.
+- Tester les permissions GPS.
+- Tester les erreurs réseau.
+- Vérifier la déduplication.
+- Mesurer les temps de réponse.
+- Vérifier les conditions des fournisseurs.
+- Préparer les éléments de publication Android.
+
+Critère de validation : l'application reste utilisable en conditions normales et gère proprement les échecs des services externes.
+
+---
+
+## 12. CRITÈRES D'ACCEPTATION DE LA V1
+
+La V1 sera considérée comme fonctionnelle lorsque :
+
+1. Un utilisateur peut effectuer une recherche depuis sa position ou une adresse.
+2. Le rayon est personnalisable.
+3. Les résultats correspondent à la zone demandée.
+4. Les restaurants sont visibles dans une liste.
+5. La carte et la liste utilisent les mêmes critères de recherche.
+6. Les filtres fonctionnent sur les informations réellement disponibles.
+7. Les fiches affichent les données connues sans inventer les données absentes.
+8. Les menus disponibles peuvent être consultés.
+9. Les menus indisponibles sont signalés clairement.
+10. Les erreurs réseau et les résultats vides sont gérés.
+11. Les appels externes sont limités et mis en cache.
+12. Les permissions et la confidentialité sont respectées.
+
+---
+
+## 13. FONCTIONNALITÉS HORS PÉRIMÈTRE INITIAL
+
+Les fonctionnalités suivantes pourront être envisagées après validation de la V1 :
+
+- Comptes utilisateurs et synchronisation des favoris.
+- Avis et commentaires personnels.
+- Photos envoyées par les utilisateurs.
+- Menus soumis directement par les restaurateurs.
+- Classement personnalisé.
+- Recommandations selon les préférences.
+- Recherche par ingrédients.
+- Comparaison des prix entre établissements.
+- Mode hors ligne avancé.
+- Notifications.
+- Modèle économique et partenariats commerciaux.
+- Déploiement iOS.
+
+Ces fonctionnalités ne doivent pas retarder la réalisation du parcours de recherche principal.
+
+---
+
+## 14. ORDRE DE PRIORITÉ
+
+Priorité P0 — indispensable :
+- Recherche géographique.
+- Rayon configurable.
+- Liste des restaurants.
+- Filtres de base.
+- Fiche détaillée.
+- Gestion des erreurs.
+- Cache et contrôle des appels.
+
+Priorité P1 — cœur de l'expérience :
+- Carte interactive.
+- Synchronisation liste/carte.
+- Liens officiels vers les menus.
+- Affichage des menus structurés disponibles.
+
+Priorité P2 — amélioration :
+- Favoris locaux.
+- Filtres avancés.
+- Optimisation des performances.
+- Améliorations visuelles et animations.
+
+---
+
+## 15. DÉCISION FINALE
+
+L'application sera développée avec React Native, Expo, TypeScript et un backend Express.
+
+OpenStreetMap sera évalué comme source géographique de départ, avec un cache et une architecture indépendante du fournisseur.
+
+La V1 devra d'abord démontrer qu'il est possible de rechercher des restaurants réels autour d'une position, de régler la distance, de filtrer les résultats et de les consulter sur une carte.
+
+Les menus seront intégrés à partir de sources autorisées, avec une distinction explicite entre menu structuré disponible, lien externe et information absente.
+
+La priorité sera donnée à la fiabilité, à la simplicité de l'expérience et à la maîtrise des coûts plutôt qu'à l'accumulation prématurée de fonctionnalités.
