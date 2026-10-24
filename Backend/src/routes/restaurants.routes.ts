@@ -1,71 +1,96 @@
-
 import { Router } from "express";
 import { z } from "zod";
 import {
   searchNearbyRestaurants,
   searchRestaurantsByText,
-} from "../services/google-places.service";
+} from "../services/openstreetmap.service";
+import { getWikidataEnrichment } from "../services/wikidata.service";
 
 const router = Router();
 
-const coordinatesSchema = z.object({
+const nearbySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
-  radius: z.coerce.number().int().min(100).max(50000).default(3000),
-  limit: z.coerce.number().int().min(1).max(20).default(10),
+  radius: z.coerce.number().int().min(100).max(10000).default(2000),
+  limit: z.coerce.number().int().min(1).max(30).default(20),
+  offset: z.coerce.number().int().min(0).max(500).default(0),
 });
 
 const textSearchSchema = z.object({
-  q: z.string().trim().min(2).max(150),
-  lat: z.coerce.number().min(-90).max(90).optional(),
-  lng: z.coerce.number().min(-180).max(180).optional(),
-  radius: z.coerce.number().int().min(100).max(50000).default(5000),
-  limit: z.coerce.number().int().min(1).max(20).default(10),
-}).refine(
-  (value) =>
-    (value.lat === undefined && value.lng === undefined) ||
-    (value.lat !== undefined && value.lng !== undefined),
-  { message: "lat et lng doivent être fournis ensemble." }
-);
+  q: z.string().trim().min(2).max(100),
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+  radius: z.coerce.number().int().min(100).max(10000).default(5000),
+  limit: z.coerce.number().int().min(1).max(30).default(20),
+  offset: z.coerce.number().int().min(0).max(500).default(0),
+});
+
+function providerError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+
+  if (message.includes("TIMEOUT")) {
+    return {
+      status: 504,
+      code: "RESTAURANT_PROVIDER_TIMEOUT",
+      message: "La recherche prend trop de temps. Réessaie dans un instant.",
+    };
+  }
+
+  if (message.includes("429") || message.includes("503") || message.includes("504")) {
+    return {
+      status: 503,
+      code: "RESTAURANT_PROVIDER_BUSY",
+      message: "Le service de recherche est temporairement occupé. Réessaie plus tard.",
+    };
+  }
+
+  return {
+    status: 502,
+    code: "RESTAURANT_PROVIDER_ERROR",
+    message: "Impossible de récupérer les restaurants pour le moment.",
+  };
+}
 
 router.get("/nearby", async (req, res) => {
-  const parsed = coordinatesSchema.safeParse(req.query);
+  const parsed = nearbySchema.safeParse(req.query);
 
   if (!parsed.success) {
     return res.status(400).json({
       success: false,
       error: {
         code: "INVALID_PARAMETERS",
-        message: "Coordonnées ou filtres invalides.",
+        message: "Coordonnées, rayon, limite ou pagination invalides.",
       },
     });
   }
 
   try {
-    const data = await searchNearbyRestaurants({
+    const result = await searchNearbyRestaurants({
       latitude: parsed.data.lat,
       longitude: parsed.data.lng,
       radius: parsed.data.radius,
       limit: parsed.data.limit,
+      offset: parsed.data.offset,
     });
 
     return res.json({
       success: true,
-      data,
+      data: result.data,
       meta: {
-        total: data.length,
-        source: "google_places",
+        total: result.data.length,
+        limit: parsed.data.limit,
+        offset: parsed.data.offset,
+        hasMore: result.hasMore,
+        source: "openstreetmap",
+        attribution: "© OpenStreetMap contributors",
       },
     });
   } catch (error) {
     console.error("[Restaurants nearby]", error);
-
-    return res.status(502).json({
+    const failure = providerError(error);
+    return res.status(failure.status).json({
       success: false,
-      error: {
-        code: "RESTAURANT_PROVIDER_ERROR",
-        message: "Impossible de récupérer les restaurants pour le moment.",
-      },
+      error: { code: failure.code, message: failure.message },
     });
   }
 });
@@ -78,36 +103,81 @@ router.get("/search", async (req, res) => {
       success: false,
       error: {
         code: "INVALID_PARAMETERS",
-        message: "Requête de recherche invalide.",
+        message: "Une recherche, des coordonnées et une pagination valides sont nécessaires.",
       },
     });
   }
 
   try {
-    const data = await searchRestaurantsByText({
+    const result = await searchRestaurantsByText({
       query: parsed.data.q,
       latitude: parsed.data.lat,
       longitude: parsed.data.lng,
       radius: parsed.data.radius,
       limit: parsed.data.limit,
+      offset: parsed.data.offset,
     });
 
     return res.json({
       success: true,
-      data,
+      data: result.data,
       meta: {
-        total: data.length,
-        source: "google_places",
+        total: result.data.length,
+        limit: parsed.data.limit,
+        offset: parsed.data.offset,
+        hasMore: result.hasMore,
+        source: "openstreetmap",
+        attribution: "© OpenStreetMap contributors",
       },
     });
   } catch (error) {
     console.error("[Restaurants search]", error);
+    const failure = providerError(error);
+    return res.status(failure.status).json({
+      success: false,
+      error: { code: failure.code, message: failure.message },
+    });
+  }
+});
 
+router.get("/wikidata/:entityId", async (req, res) => {
+  const entityId = req.params.entityId;
+
+  if (!/^Q[1-9][0-9]*$/.test(entityId)) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "INVALID_WIKIDATA_ID",
+        message: "L'identifiant Wikidata doit être au format Q123.",
+      },
+    });
+  }
+
+  try {
+    const data = await getWikidataEnrichment(entityId);
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: "WIKIDATA_ENTITY_NOT_FOUND",
+          message: "Aucune information complémentaire trouvée.",
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      data,
+      meta: { source: "wikidata" },
+    });
+  } catch (error) {
+    console.error("[Wikidata enrichment]", error);
     return res.status(502).json({
       success: false,
       error: {
-        code: "RESTAURANT_PROVIDER_ERROR",
-        message: "La recherche de restaurants a échoué.",
+        code: "WIKIDATA_PROVIDER_ERROR",
+        message: "Les informations complémentaires sont temporairement indisponibles.",
       },
     });
   }
