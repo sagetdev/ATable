@@ -1,15 +1,17 @@
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { BottomNav } from "@/components/BottomNav";
 import type { TabKey } from "@/lib/routes";
 
 export default function TabsLayout() {
+  const router = useRouter();
+
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
       tabBar={(props) => (
         <BottomNav
           active={props.state.routes[props.state.index].name as TabKey}
-          onNavigate={(key) => props.navigation.navigate(key)}
+          onNavigate={(key) => router.navigate(`/(tabs)/${key}`)}
         />
       )}
     >
