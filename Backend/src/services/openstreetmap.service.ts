@@ -34,7 +34,7 @@ type OsmElement = {
 type OverpassResponse = { elements?: OsmElement[] };
 
 function escapeOverpassRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").slice(0, 100);
+  return value.replace(/[.*+?^\${}()|[\]\\]/g, "\\  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").slice(0, 100);").slice(0, 100);
 }
 
 function elementCoordinates(element: OsmElement) {
