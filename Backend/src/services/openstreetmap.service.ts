@@ -108,7 +108,11 @@ async function executeOverpass(query: string): Promise<OverpassResponse> {
 
       return (await response.json()) as OverpassResponse;
     } catch (error) {
-      lastError = error;
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+        lastError = new Error("OVERPASS_TIMEOUT");
+      } else {
+        lastError = error;
+      }
     }
   }
 
