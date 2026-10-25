@@ -14,6 +14,7 @@ type GooglePlace = {
   regularOpeningHours?: { weekdayDescriptions?: string[] };
   priceLevel?: string;
   formattedAddress?: string;
+  photos?: Array<{ name?: string; authorAttributions?: Array<{ displayName?: string; uri?: string }> }>;
 };
 type GoogleSearchResponse = { places?: GooglePlace[]; nextPageToken?: string };
 
@@ -26,6 +27,7 @@ const ENTERPRISE_FIELDS = [
   ...BASIC_FIELDS.split(","),
   "places.rating", "places.userRatingCount", "places.websiteUri",
   "places.nationalPhoneNumber", "places.regularOpeningHours", "places.priceLevel",
+  "places.photos",
 ].join(",");
 const REQUEST_TIMEOUT_MS = 5000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -123,6 +125,8 @@ function toGoogleRestaurant(place: GooglePlace): RestaurantPlace | null {
     openingHours: place.regularOpeningHours?.weekdayDescriptions?.join(" · ") ?? null,
     wikidataId: null,
     imageUrl: null,
+    imageAttribution: null,
+    imageAttributionUrl: null,
     rating: typeof place.rating === "number" ? place.rating : null,
     reviewCount: typeof place.userRatingCount === "number" ? place.userRatingCount : null,
     priceLevel: priceLevelNumber(place.priceLevel),
@@ -170,6 +174,24 @@ async function fetchSearchPage(
   return await response.json() as GoogleSearchResponse;
 }
 
+async function resolveGooglePhoto(place: GooglePlace, apiKey: string): Promise<Pick<RestaurantPlace, "imageUrl" | "imageAttribution" | "imageAttributionUrl">> {
+  const photoName = place.photos?.find((photo) => photo.name)?.name;
+  if (!photoName) return { imageUrl: null, imageAttribution: null, imageAttributionUrl: null };
+  try {
+    reserveGoogleRequest();
+    const response = await fetch(`https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=640&skipHttpRedirect=true`, {
+      headers: { "X-Goog-Api-Key": apiKey }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!response.ok) return { imageUrl: null, imageAttribution: null, imageAttributionUrl: null };
+    const media = await response.json() as { photoUri?: string };
+    const attribution = place.photos?.find((photo) => photo.name === photoName)?.authorAttributions?.find((item) => item.displayName);
+    return { imageUrl: media.photoUri ?? null, imageAttribution: attribution?.displayName ?? null, imageAttributionUrl: attribution?.uri ?? null };
+  } catch (error) {
+    console.warn(error instanceof Error && error.message === "GOOGLE_PLACES_DAILY_LIMIT_REACHED" ? "[Google Places photos] daily cap reached." : "[Google Places photos] unable to retrieve a photo.");
+    return { imageUrl: null, imageAttribution: null, imageAttributionUrl: null };
+  }
+}
+
 async function searchGoogle(input: {
   query: string; latitude: number; longitude: number; radius: number; limit: number; offset?: number;
 }): Promise<{ data: RestaurantPlace[]; hasMore: boolean }> {
@@ -201,7 +223,21 @@ async function searchGoogle(input: {
   }
 
   const places = cached.pages.flatMap((page) => page.places ?? []);
-  const data = places.slice(offset, endIndex).map(toGoogleRestaurant).filter((place): place is RestaurantPlace => place !== null);
+  const selectedPlaces = places.slice(offset, endIndex);
+  const data = selectedPlaces.map(toGoogleRestaurant).filter((place): place is RestaurantPlace => place !== null);
+  if (env.GOOGLE_PLACES_ENTERPRISE_MODE && data.length > 0) {
+    const candidates = selectedPlaces.slice(0, Math.min(5, data.length));
+    const photos = await Promise.all(candidates.map(async (place) => ({
+      id: place.id ? "google:" + place.id : "",
+      photo: await resolveGooglePhoto(place, apiKey),
+    })));
+    for (const item of photos) {
+      const target = data.find((restaurant) => restaurant.id === item.id);
+      if (target && item.photo.imageUrl) Object.assign(target, item.photo);
+    }
+  }
+  // Google photo resource names must not persist in our search cache.
+  for (const page of cached.pages) for (const place of page.places ?? []) delete place.photos;
   const lastFetchedPage = cached.pages[Math.min(targetPageIndex, cached.pages.length - 1)];
   const hasMore = endIndex < places.length || Boolean(lastFetchedPage?.nextPageToken);
   return { data, hasMore };
