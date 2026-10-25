@@ -222,6 +222,22 @@ async function searchGoogle(input: {
     cached.expiresAt = Date.now() + CACHE_TTL_MS;
   }
 
+  // Photo resource names are intentionally removed before caching. Refresh the
+  // requested page when cached restaurant data no longer contains photo metadata.
+  // This keeps each response eligible for a fresh photo lookup without persisting
+  // Google's photo resources or media URLs in our cache.
+  if (env.GOOGLE_PLACES_ENTERPRISE_MODE) {
+    for (let index = firstPageIndex; index <= targetPageIndex; index += 1) {
+      const page = cached.pages[index];
+      if (!page || (page.places ?? []).some((place) => place.photos?.some((photo) => photo.name))) continue;
+      const previous = index > 0 ? cached.pages[index - 1] : undefined;
+      const token = previous?.nextPageToken;
+      if (index > 0 && !token) break;
+      cached.pages[index] = await fetchSearchPage(apiKey, input.query, input.latitude, input.longitude, input.radius, token);
+      cached.expiresAt = Date.now() + CACHE_TTL_MS;
+    }
+  }
+
   const places = cached.pages.flatMap((page) => page.places ?? []);
   const selectedPlaces = places.slice(offset, endIndex);
   const data = selectedPlaces.map(toGoogleRestaurant).filter((place): place is RestaurantPlace => place !== null);
@@ -262,7 +278,10 @@ export async function searchGoogleRestaurantsByText(input: {
 async function enrichOne(restaurant: RestaurantPlace, apiKey: string): Promise<RestaurantPlace> {
   const key = normalizeName(restaurant.name) + ":" + restaurant.latitude.toFixed(4) + ":" + restaurant.longitude.toFixed(4);
   const cached = enrichmentCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  // Re-run the match when we previously had no image: Google photo media URLs
+  // must not be persisted in this cache, and a later request may have a photo.
+  if (cached && cached.expiresAt > Date.now() &&
+      (cached.value.imageUrl || restaurant.imageUrl)) return cached.value;
 
   reserveGoogleRequest();
   const response = await fetch(GOOGLE_TEXT_SEARCH_URL, {
@@ -311,7 +330,20 @@ async function enrichOne(restaurant: RestaurantPlace, apiKey: string): Promise<R
     reviewCount: typeof place.userRatingCount === "number" ? place.userRatingCount : restaurant.reviewCount,
     priceLevel: priceLevelNumber(place.priceLevel) ?? restaurant.priceLevel,
   };
-  enrichmentCache.set(key, { expiresAt: Date.now() + ENRICHMENT_CACHE_TTL_MS, value: result });
+  // OSM-sourced image URLs may be cached as supplied by OSM, but never persist
+  // a Google Places photo media URL in the enrichment cache.
+  const cacheValue: RestaurantPlace = {
+    ...result,
+    imageUrl: restaurant.imageUrl,
+    imageAttribution: restaurant.imageAttribution,
+    imageAttributionUrl: restaurant.imageAttributionUrl,
+  };
+  enrichmentCache.set(key, { expiresAt: Date.now() + ENRICHMENT_CACHE_TTL_MS, value: cacheValue });
+
+  if (!result.imageUrl && place.photos?.some((photo) => photo.name)) {
+    const photo = await resolveGooglePhoto(place, apiKey);
+    if (photo.imageUrl) Object.assign(result, photo);
+  }
   return result;
 }
 
