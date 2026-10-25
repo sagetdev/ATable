@@ -71,7 +71,14 @@ export default function FicheRestaurant() {
           {imageUrl ? (
             <Image source={{ uri: imageUrl }} resizeMode="cover" style={{ position: "absolute", width: "100%", height: "100%" }} />
           ) : (
-            <View className="absolute left-0 right-0 top-[96px] items-center"><Text className="text-[88px]">{r.emoji}</Text></View>
+            <View className="absolute inset-0 items-center justify-center overflow-hidden">
+              <View className="absolute -right-[65px] -top-[60px] h-[230px] w-[230px] rounded-full bg-white/30" />
+              <View className="absolute -bottom-[95px] -left-[55px] h-[260px] w-[260px] rounded-full bg-white/25" />
+              <View className="h-[142px] w-[142px] items-center justify-center rounded-[42px] border border-white/60 bg-white/40">
+                <Text className="text-[82px]">{r.emoji}</Text>
+              </View>
+              <Text className="mt-[13px] text-[12px] font-inter-semibold text-forest-700">À découvrir</Text>
+            </View>
           )}
           <View className="absolute left-[21px] right-[24px] flex-row items-center justify-between" style={{ top: insets.top + 18 }}>
             <Pressable onPress={back} hitSlop={12}><Feather name="chevron-left" size={32} color={imageUrl ? "#FFFFFF" : "#17251D"} /></Pressable>
