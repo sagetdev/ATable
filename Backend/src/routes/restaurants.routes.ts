@@ -1,9 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import {
-  searchNearbyRestaurants,
-  searchRestaurantsByText,
-} from "../services/openstreetmap.service";
+import { searchNearby, searchByText } from "../services/restaurant-search.service";
 import { getWikidataEnrichment } from "../services/wikidata.service";
 import { getFoursquareEnrichment } from "../services/foursquare.service";
 import { enrichRestaurantsWithGooglePlaces } from "../services/google-places.service";
@@ -33,13 +30,21 @@ const ratingSchema = z.object({
 
 function providerError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
-  if (message.includes("TIMEOUT")) return {
+  if ((error instanceof Error && error.name === "TimeoutError") || message.includes("TIMEOUT")) return {
     status: 504, code: "RESTAURANT_PROVIDER_TIMEOUT",
     message: "La recherche prend trop de temps. Réessaie dans un instant.",
   };
   if (message.includes("429") || message.includes("503") || message.includes("504")) return {
     status: 503, code: "RESTAURANT_PROVIDER_BUSY",
     message: "Le service de recherche est temporairement occupé. Réessaie plus tard.",
+  };
+  if (message.includes("GOOGLE_PLACES_DAILY_LIMIT_REACHED")) return {
+    status: 429, code: "GOOGLE_PLACES_DAILY_LIMIT_REACHED",
+    message: "La limite quotidienne de requêtes Google Places est atteinte. Réessaie demain.",
+  };
+  if (message.includes("GOOGLE_PLACES_API_KEY_MISSING")) return {
+    status: 503, code: "GOOGLE_PLACES_API_KEY_MISSING",
+    message: "Le mode Google Places est activé, mais GOOGLE_PLACES_API_KEY n'est pas configurée.",
   };
   if (message.includes("FOURSQUARE_DAILY_LIMIT_REACHED")) return {
     status: 429, code: "FOURSQUARE_DAILY_LIMIT_REACHED",
@@ -59,7 +64,7 @@ router.get("/nearby", async (req, res) => {
   });
 
   try {
-    const result = await searchNearbyRestaurants({
+    const result = await searchNearby({
       latitude: parsed.data.lat, longitude: parsed.data.lng, radius: parsed.data.radius,
       limit: parsed.data.limit, offset: parsed.data.offset,
     });
@@ -69,8 +74,8 @@ router.get("/nearby", async (req, res) => {
       data,
       meta: {
         total: result.data.length, limit: parsed.data.limit, offset: parsed.data.offset,
-        hasMore: result.hasMore, source: "openstreetmap",
-        attribution: "© OpenStreetMap contributors",
+        hasMore: result.hasMore, source: result.source,
+        attribution: result.attribution,
       },
     });
   } catch (error) {
@@ -88,7 +93,7 @@ router.get("/search", async (req, res) => {
   });
 
   try {
-    const result = await searchRestaurantsByText({
+    const result = await searchByText({
       query: parsed.data.q, latitude: parsed.data.lat, longitude: parsed.data.lng,
       radius: parsed.data.radius, limit: parsed.data.limit, offset: parsed.data.offset,
     });
