@@ -28,8 +28,7 @@ export function filterRestaurants(list: Restaurant[], f: Filters) {
   return list
     .filter((r) =>
       (f.cuisine === "Tous" || r.categories.some((category) => category.toLowerCase() === f.cuisine.toLowerCase())) &&
-      (f.budgets.length === 0 || f.budgets.includes(r.price)) &&
-      // OSM often has no rating. Do not hide an unreviewed place just because its rating is unknown.
+      (f.budgets.length === 0 || r.priceKnown === false || f.budgets.includes(r.price)) &&
       (r.rating <= 0 || r.rating >= f.minRating) &&
       r.distanceKm <= f.maxDistance &&
       (!f.openNow || isOpenNow(r)) &&
