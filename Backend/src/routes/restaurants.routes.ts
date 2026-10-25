@@ -42,6 +42,10 @@ function providerError(error: unknown) {
     status: 429, code: "GOOGLE_PLACES_DAILY_LIMIT_REACHED",
     message: "La limite quotidienne de requêtes Google Places est atteinte. Réessaie demain.",
   };
+  if (message.includes("GOOGLE_PLACES_OFFSET_NOT_AVAILABLE")) return {
+    status: 400, code: "GOOGLE_PLACES_OFFSET_NOT_AVAILABLE",
+    message: "Cette page de résultats Google n’est plus disponible en cache. Recommence la recherche depuis le début.",
+  };
   if (message.includes("GOOGLE_PLACES_API_KEY_MISSING")) return {
     status: 503, code: "GOOGLE_PLACES_API_KEY_MISSING",
     message: "Le mode Google Places est activé, mais GOOGLE_PLACES_API_KEY n'est pas configurée.",
