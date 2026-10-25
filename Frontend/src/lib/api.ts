@@ -3,7 +3,7 @@ import type { Restaurant } from "@/data/restaurants";
 export type ApiRestaurant = {
   id: string;
   sourceId: string;
-  source: "openstreetmap";
+  source: "openstreetmap" | "google";
   name: string;
   address: string | null;
   latitude: number;
