@@ -8,7 +8,7 @@ type Props = {
   max?: number;
 };
 
-export function RadiusSelector({ value, onChange, min = 1, max = 15 }: Props) {
+export function RadiusSelector({ value, onChange, min = 1, max = 10 }: Props) {
   const ratio = (value - min) / (max - min);
   return (
     <View className="mx-[20px] h-[66px] flex-row items-center justify-between rounded-[17px] bg-forest-700 pl-[14px] pr-[8px]">
