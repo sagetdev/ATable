@@ -9,6 +9,7 @@ import {
   searchGoogleNearbyRestaurants,
   searchGoogleRestaurantsByText,
 } from "./google-places.service";
+import { getWikidataEnrichment } from "./wikidata.service";
 
 export type RestaurantSearchResult = {
   data: RestaurantPlace[];
@@ -38,14 +39,31 @@ function result(
 }
 
 async function finishOsmResult(found: { data: RestaurantPlace[]; hasMore: boolean }): Promise<RestaurantSearchResult> {
+  // Prefer Google Places photos for the first capped set, then use openly
+  // licensed Wikimedia Commons images when OSM links a restaurant to Wikidata.
+  // Wikidata lookups are cached by their service and only attempted for results
+  // that still have no image, so this remains a best-effort, low-cost fallback.
   const data = await enrichRestaurantsWithGooglePlaces(found.data);
+  const wikidataCandidates = data.filter((restaurant) => !restaurant.imageUrl && restaurant.wikidataId).slice(0, 10);
+  await Promise.all(wikidataCandidates.map(async (restaurant) => {
+    try {
+      const details = await getWikidataEnrichment(restaurant.wikidataId!);
+      if (!details?.imageUrl) return;
+      restaurant.imageUrl = details.imageUrl;
+      restaurant.imageAttribution = details.imageArtist ?? details.imageCredit ?? "Wikimedia Commons";
+      restaurant.imageAttributionUrl = details.imageSourceUrl;
+    } catch {
+      // Photo enrichment is optional; never fail restaurant discovery because of it.
+    }
+  }));
   const googleEnrichmentEnabled = env.GOOGLE_PLACES_ENTERPRISE_MODE && Boolean(env.GOOGLE_PLACES_API_KEY?.trim());
-  return result(
-    data,
-    found.hasMore,
-    "openstreetmap",
-    googleEnrichmentEnabled ? OSM_ATTRIBUTION + " · " + GOOGLE_ATTRIBUTION : OSM_ATTRIBUTION,
-  );
+  const hasWikimediaImages = wikidataCandidates.some((restaurant) => Boolean(restaurant.imageUrl));
+  const attribution = [
+    OSM_ATTRIBUTION,
+    googleEnrichmentEnabled ? GOOGLE_ATTRIBUTION : null,
+    hasWikimediaImages ? "Wikidata · Wikimedia Commons" : null,
+  ].filter(Boolean).join(" · ");
+  return result(data, found.hasMore, "openstreetmap", attribution);
 }
 
 export async function searchNearby(input: SearchInput): Promise<RestaurantSearchResult> {
