@@ -1,0 +1,30 @@
+name: Frontend checks
+
+on:
+  pull_request:
+    paths:
+      - "Frontend/**"
+      - ".github/workflows/frontend-check.yml"
+  push:
+    branches:
+      - main
+      - feat/connect-frontend-backend
+    paths:
+      - "Frontend/**"
+      - ".github/workflows/frontend-check.yml"
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
