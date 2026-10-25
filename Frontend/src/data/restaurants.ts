@@ -1,6 +1,6 @@
 import type { Tone } from "@/lib/tones";
 
-// Données d’exemple issues du kit Figma — à remplacer par ta source (API / BDD).
+// Jeu de données de démonstration conservé pour Storybook / aperçu UI. L’application utilise l’API pour la découverte.
 
 export type MenuItemData = {
   id: string;
@@ -31,6 +31,14 @@ export type Restaurant = {
   menuSummary?: string;
   menuCategories?: string[];
   menu?: MenuItemData[];
+  priceKnown?: boolean;
+  latitude?: number;
+  longitude?: number;
+  phone?: string;
+  openingHours?: string;
+  wikidataId?: string;
+  imageUrl?: string;
+  attribution?: string;
 };
 
 export const RESTAURANTS: Restaurant[] = [
