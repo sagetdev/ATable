@@ -21,7 +21,8 @@ export type RestaurantPlace = {
   wikidataId: string | null;
   imageUrl: string | null;
   rating: number | null;
-  priceLevel: null;
+  reviewCount: number | null;
+  priceLevel: number | null;
   attribution: "© OpenStreetMap contributors";
 };
 
@@ -78,6 +79,7 @@ function normalizeElement(element: OsmElement): RestaurantPlace | null {
     wikidataId: tags.wikidata ?? null,
     imageUrl: null,
     rating: null,
+    reviewCount: null,
     priceLevel: null,
     attribution: "© OpenStreetMap contributors",
   };
