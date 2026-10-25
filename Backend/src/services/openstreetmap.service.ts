@@ -9,7 +9,7 @@ const OVERPASS_ENDPOINTS = [
 export type RestaurantPlace = {
   id: string;
   sourceId: string;
-  source: "openstreetmap";
+  source: "openstreetmap" | "google";
   name: string;
   address: string | null;
   latitude: number;
@@ -23,7 +23,7 @@ export type RestaurantPlace = {
   rating: number | null;
   reviewCount: number | null;
   priceLevel: number | null;
-  attribution: "© OpenStreetMap contributors";
+  attribution: string;
 };
 
 type OsmElement = {
