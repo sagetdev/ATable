@@ -185,9 +185,12 @@ async function searchGoogle(input: {
   const firstPageIndex = Math.floor(offset / 20);
   const endIndex = offset + input.limit;
   const lastPageIndex = Math.floor(Math.max(0, endIndex - 1) / 20);
-  // Keep a single API response bounded to three new pages; normal 20-30 item
-  // frontend requests need at most two. Earlier page tokens are cached.
   const targetPageIndex = Math.min(lastPageIndex, firstPageIndex + 2);
+  // Avoid an unexpectedly large offset consuming most of the daily quota just
+  // to walk uncached page tokens. Normal app pagination (offset 0, then 30) works.
+  const missingPages = Array.from({ length: targetPageIndex + 1 }, (_, index) => index)
+    .filter((index) => !cached.pages[index]).length;
+  if (missingPages > 3) throw new Error("GOOGLE_PLACES_OFFSET_NOT_AVAILABLE");
   for (let index = 0; index <= targetPageIndex; index += 1) {
     if (cached.pages[index]) continue;
     const previous = index > 0 ? cached.pages[index - 1] : undefined;
