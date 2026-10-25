@@ -10,7 +10,7 @@ import { TAB_HREF } from "@/lib/routes";
 
 export default function Onboarding() {
   const router = useRouter();
-  const { completeOnboarding } = useApp();
+  const { completeOnboarding, requestDeviceLocation } = useApp();
 
   const enter = () => {
     completeOnboarding();
