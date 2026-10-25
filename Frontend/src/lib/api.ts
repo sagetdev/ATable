@@ -14,6 +14,8 @@ export type ApiRestaurant = {
   openingHours: string | null;
   wikidataId: string | null;
   imageUrl: string | null;
+  imageAttribution?: string | null;
+  imageAttributionUrl?: string | null;
   rating: number | null;
   reviewCount?: number | null;
   priceLevel: number | null;
@@ -102,7 +104,8 @@ function toRestaurant(place: ApiRestaurant, lat: number, lng: number): Restauran
     about: "Informations issues des sources disponibles. Les menus et prix ne sont pas toujours renseignés.",
     latitude: place.latitude, longitude: place.longitude, phone: place.phone ?? undefined,
     openingHours: place.openingHours ?? undefined, wikidataId: place.wikidataId ?? undefined,
-    imageUrl: place.imageUrl ?? undefined, attribution: place.attribution,
+    imageUrl: place.imageUrl ?? undefined, imageAttribution: place.imageAttribution ?? undefined,
+    imageAttributionUrl: place.imageAttributionUrl ?? undefined, attribution: place.attribution,
   };
 }
 function buildParams(params: Record<string, string | number>) {
