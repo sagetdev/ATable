@@ -18,10 +18,68 @@ export const DEFAULT_FILTERS: Filters = {
   hasMenu: false,
 };
 
+const DAY_CODES = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+function parseClock(value: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 24 || minutes > 59 || (hours === 24 && minutes !== 0)) return null;
+  return hours * 60 + minutes;
+}
+
+function clauseAppliesToday(dayPart: string | undefined, dayCode: string) {
+  if (!dayPart) return true;
+  return dayPart.split(",").some((range) => {
+    const parts = range.split("-");
+    const start = DAY_CODES.indexOf(parts[0]);
+    const end = DAY_CODES.indexOf(parts[1] ?? parts[0]);
+    const current = DAY_CODES.indexOf(dayCode);
+    if (start < 0 || end < 0) return false;
+    return start <= end ? current >= start && current <= end : current >= start || current <= end;
+  });
+}
+
+function isWithinOpeningHours(schedule: string, now: Date) {
+  if (/^24\/7$/.test(schedule.trim())) return true;
+  const today = DAY_CODES[now.getDay()];
+  const minuteOfDay = now.getHours() * 60 + now.getMinutes();
+  const clauses = schedule.split(";").map((part) => part.trim()).filter(Boolean);
+  let hasMatchingRule = false;
+  let open = false;
+
+  for (const clause of clauses) {
+    const match = /^(?:(Mo|Tu|We|Th|Fr|Sa|Su(?:,(?:Mo|Tu|We|Th|Fr|Sa|Su))*(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)\s+)?(off|closed|24\/7|\d{1,2}:\d{2}-\d{1,2}:\d{2})$/i.exec(clause);
+    if (!match || !clauseAppliesToday(match[1], today)) continue;
+    hasMatchingRule = true;
+    const hours = match[2].toLowerCase();
+    if (hours === "off" || hours === "closed") {
+      open = false;
+      continue;
+    }
+    if (hours === "24/7") {
+      open = true;
+      continue;
+    }
+    const [startText, endText] = hours.split("-");
+    const start = parseClock(startText);
+    const end = parseClock(endText);
+    if (start === null || end === null) continue;
+    open = end >= start
+      ? minuteOfDay >= start && minuteOfDay < end
+      : minuteOfDay >= start || minuteOfDay < end;
+  }
+  return hasMatchingRule && open;
+}
+
 export function isOpenNow(r: Restaurant, now = new Date()) {
-  if (!r.hours) return false;
-  const h = now.getHours() + now.getMinutes() / 60;
-  return h >= r.hours.open && h < r.hours.close;
+  if (r.hours) {
+    const h = now.getHours() + now.getMinutes() / 60;
+    return h >= r.hours.open && h < r.hours.close;
+  }
+  if (r.openingHours) return isWithinOpeningHours(r.openingHours, now);
+  return false;
 }
 
 export function filterRestaurants(list: Restaurant[], f: Filters) {
