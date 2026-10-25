@@ -200,7 +200,7 @@ async function searchGoogle(input: {
   const places = cached.pages.flatMap((page) => page.places ?? []);
   const data = places.slice(offset, endIndex).map(toGoogleRestaurant).filter((place): place is RestaurantPlace => place !== null);
   const lastFetchedPage = cached.pages[Math.min(targetPageIndex, cached.pages.length - 1)];
-  const hasMore = Boolean(lastFetchedPage?.nextPageToken) && endIndex >= places.length;
+  const hasMore = endIndex < places.length || Boolean(lastFetchedPage?.nextPageToken);
   return { data, hasMore };
 }
 
@@ -225,6 +225,7 @@ async function enrichOne(restaurant: RestaurantPlace, apiKey: string): Promise<R
   const cached = enrichmentCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
+  reserveGoogleRequest();
   const response = await fetch(GOOGLE_TEXT_SEARCH_URL, {
     method: "POST",
     headers: {
@@ -286,8 +287,6 @@ export async function enrichRestaurantsWithGooglePlaces(restaurants: RestaurantP
   const toEnrich = restaurants.slice(0, maxResults);
   const enriched = await Promise.all(toEnrich.map(async (restaurant) => {
     try {
-      // Reserve here as well so the cap is shared with discovery requests.
-      reserveGoogleRequest();
       return await enrichOne(restaurant, apiKey);
     } catch (error) {
       if (error instanceof Error && error.message === "GOOGLE_PLACES_DAILY_LIMIT_REACHED") {
