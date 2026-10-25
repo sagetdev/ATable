@@ -9,7 +9,8 @@ import { LinkBadge } from "@/components/ui/Badge";
 import { useApp } from "@/store/AppContext";
 import { TONE_BG } from "@/lib/tones";
 import { fmt } from "@/lib/format";
-import { FoursquareDetails, getFoursquareDetails, getWikidataDetails, WikidataDetails } from "@/lib/api";
+import { getFoursquareDetails, getWikidataDetails } from "@/lib/api";
+import type { FoursquareDetails, WikidataDetails } from "@/lib/api";
 import { TAB_HREF, toMenu } from "@/lib/routes";
 
 export default function FicheRestaurant() {
