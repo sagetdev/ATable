@@ -25,7 +25,7 @@ function normalizedName(value: string): string {
 
 /**
  * Optional enrichment. No API key means no Foursquare requests.
- * Cached for one hour and capped at 20 provider requests/day per backend process.
+ * Cached for one hour and capped at 15 provider requests/day per backend process.
  */
 export async function getFoursquareEnrichment(input: {
   name: string;
