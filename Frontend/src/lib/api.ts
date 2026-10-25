@@ -15,6 +15,7 @@ export type ApiRestaurant = {
   wikidataId: string | null;
   imageUrl: string | null;
   rating: number | null;
+  reviewCount?: number | null;
   priceLevel: number | null;
   attribution: string;
 };
@@ -96,9 +97,9 @@ function toRestaurant(place: ApiRestaurant, lat: number, lng: number): Restauran
   return {
     id: place.id, name: place.name, emoji: emojiFor(place.cuisine), tone: "mint", cuisine,
     descriptor: cuisine, categories, price, priceKnown: place.priceLevel !== null,
-    rating: place.rating ?? 0, distanceKm: distanceKm(lat, lng, place.latitude, place.longitude),
+    rating: place.rating ?? 0, reviews: place.reviewCount ?? undefined, distanceKm: distanceKm(lat, lng, place.latitude, place.longitude),
     address: place.address ?? undefined, website: place.websiteUrl ?? undefined,
-    about: "Informations issues d’OpenStreetMap. Les notes, menus, horaires et prix ne sont pas toujours renseignés.",
+    about: "Informations issues des sources disponibles. Les menus et prix ne sont pas toujours renseignés.",
     latitude: place.latitude, longitude: place.longitude, phone: place.phone ?? undefined,
     openingHours: place.openingHours ?? undefined, wikidataId: place.wikidataId ?? undefined,
     imageUrl: place.imageUrl ?? undefined, attribution: place.attribution,
