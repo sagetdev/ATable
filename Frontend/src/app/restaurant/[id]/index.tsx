@@ -1,4 +1,5 @@
-import { Linking, Pressable, ScrollView, View } from "react-native";\nimport { useEffect, useState } from "react";
+import { Linking, Pressable, ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,8 +8,15 @@ import { Button } from "@/components/ui/Button";
 import { LinkBadge } from "@/components/ui/Badge";
 import { useApp } from "@/store/AppContext";
 import { TONE_BG } from "@/lib/tones";
-import { fmt } from "@/lib/format";\nimport { getWikidataDetails } from "@/lib/api";
+import { fmt } from "@/lib/format";
+import { getWikidataDetails } from "@/lib/api";
 import { TAB_HREF, toMenu } from "@/lib/routes";
+
+type WikidataDetails = {
+  description: string | null;
+  wikipediaUrl: string | null;
+  officialWebsite: string | null;
+};
 
 export default function FicheRestaurant() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -16,6 +24,22 @@ export default function FicheRestaurant() {
   const insets = useSafeAreaInsets();
   const { favorites, toggleFavorite, restaurants, loadingRestaurants, restaurantError } = useApp();
   const r = restaurants.find((restaurant) => restaurant.id === id);
+  const [wikidataDetails, setWikidataDetails] = useState<WikidataDetails | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!r?.wikidataId) {
+      setWikidataDetails(null);
+      return () => { active = false; };
+    }
+    void getWikidataDetails(r.wikidataId).then((data) => {
+      if (active) setWikidataDetails(data as WikidataDetails | null);
+    }).catch(() => {
+      if (active) setWikidataDetails(null);
+    });
+    return () => { active = false; };
+  }, [r?.wikidataId]);
+
   const back = () => (router.canGoBack() ? router.back() : router.replace(TAB_HREF.decouvrir));
 
   if (!r) {
@@ -59,10 +83,10 @@ export default function FicheRestaurant() {
             </View>
           ) : null}
 
-          {r.about ? (
+          {r.about || wikidataDetails?.description ? (
             <>
               <Text className="mt-[19px] text-[16px] font-inter-bold">À propos</Text>
-              <Text className="mt-[8px] text-[12px] leading-[16px] text-muted">{r.about}</Text>
+              <Text className="mt-[8px] text-[12px] leading-[16px] text-muted">{wikidataDetails?.description ?? r.about}</Text>
             </>
           ) : null}
 
@@ -90,10 +114,16 @@ export default function FicheRestaurant() {
               <Feather name="dollar-sign" size={13} color="#748078" />
               <Text className="ml-[10px] text-[12px]">{r.priceKnown === false ? "Gamme de prix non renseignée" : `Gamme de prix : ${"$".repeat(r.price)}`}</Text>
             </View>
-            {r.wikidataId ? (
-              <Pressable onPress={() => Linking.openURL(`https://www.wikidata.org/wiki/${r.wikidataId}`)} className="flex-row items-center py-[7px]">
-                <Feather name="external-link" size={13} color="#748078" />
-                <Text className="ml-[10px] text-[12px]">Informations complémentaires · Wikidata</Text>
+            {wikidataDetails?.officialWebsite ? (
+              <Pressable onPress={() => Linking.openURL(wikidataDetails.officialWebsite!)} className="flex-row items-center py-[7px]">
+                <Feather name="globe" size={13} color="#748078" />
+                <Text className="ml-[10px] text-[12px]">Site officiel · Wikidata</Text>
+              </Pressable>
+            ) : null}
+            {wikidataDetails?.wikipediaUrl ? (
+              <Pressable onPress={() => Linking.openURL(wikidataDetails.wikipediaUrl!)} className="flex-row items-center py-[7px]">
+                <Feather name="book-open" size={13} color="#748078" />
+                <Text className="ml-[10px] text-[12px]">Article Wikipédia</Text>
               </Pressable>
             ) : null}
           </View>
