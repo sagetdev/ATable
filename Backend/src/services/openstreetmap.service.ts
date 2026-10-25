@@ -20,6 +20,8 @@ export type RestaurantPlace = {
   openingHours: string | null;
   wikidataId: string | null;
   imageUrl: string | null;
+  imageAttribution?: string | null;
+  imageAttributionUrl?: string | null;
   rating: number | null;
   reviewCount: number | null;
   priceLevel: number | null;
@@ -77,7 +79,9 @@ function normalizeElement(element: OsmElement): RestaurantPlace | null {
     websiteUrl: tags.website ?? tags["contact:website"] ?? null,
     openingHours: tags.opening_hours ?? null,
     wikidataId: tags.wikidata ?? null,
-    imageUrl: null,
+    imageUrl: /^https?:\/\//i.test(tags.image ?? "") ? tags.image ?? null : null,
+    imageAttribution: null,
+    imageAttributionUrl: null,
     rating: null,
     reviewCount: null,
     priceLevel: null,
