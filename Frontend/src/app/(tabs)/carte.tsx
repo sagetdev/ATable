@@ -8,7 +8,8 @@ import { SearchField } from "@/components/ui/SearchField";
 import { MapPin } from "@/components/MapPin";
 import { TONE_BG } from "@/lib/tones";
 import { fmt } from "@/lib/format";
-import { toRestaurant } from "@/lib/routes";\nimport { filterRestaurants } from "@/lib/filters";
+import { toRestaurant } from "@/lib/routes";
+import { filterRestaurants } from "@/lib/filters";
 import { useApp } from "@/store/AppContext";
 
 const H_ROADS = [42, 125, 208, 291, 374, 457, 540];
