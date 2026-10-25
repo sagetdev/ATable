@@ -37,10 +37,10 @@ export function RestaurantCard({ restaurant: r, favorite, onToggleFavorite }: Pr
           {r.name}
         </Text>
         <Text className="h-[26px] text-[11px] text-muted">
-          {r.cuisine} · {"$".repeat(r.price)}
+          {r.cuisine} · {r.priceKnown === false ? "Prix non renseigné" : "$".repeat(r.price)}
         </Text>
         <View className="h-[28px] flex-row items-baseline">
-          <Text className="text-[12px] font-inter-semibold text-forest-500">★ {fmt(r.rating)}</Text>
+          <Text className="text-[12px] font-inter-semibold text-forest-500">{r.rating > 0 ? `★ ${fmt(r.rating)}` : "Note indisponible"}</Text>
           <Text className="ml-[26px] text-[11px] text-muted">· {fmt(r.distanceKm)} km</Text>
         </View>
         <Pressable onPress={() => router.push(toMenu(r.id))} className="flex-row items-center">
