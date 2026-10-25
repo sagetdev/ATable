@@ -1,10 +1,14 @@
-import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import * as Location from "expo-location";
 import { DEFAULT_FILTERS, Filters } from "@/lib/filters";
+import { ApiError, getNearbyRestaurants, searchRestaurants } from "@/lib/api";
+import type { Restaurant } from "@/data/restaurants";
 
 export type FavStatus = "todo" | "done";
 
 type AppState = {
   location: string;
+  coordinates: { latitude: number; longitude: number };
   onboarded: boolean;
   completeOnboarding: () => void;
   filters: Filters;
@@ -13,20 +17,35 @@ type AppState = {
   resetFilters: () => void;
   favorites: Record<string, FavStatus>;
   toggleFavorite: (id: string) => void;
+  restaurants: Restaurant[];
+  loadingRestaurants: boolean;
+  hasMoreRestaurants: boolean;
+  loadingMoreRestaurants: boolean;
+  loadMoreRestaurants: () => Promise<void>;
+  restaurantError: string | null;
+  attribution: string;
+  refreshRestaurants: () => Promise<void>;
+  requestDeviceLocation: () => Promise<boolean>;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
 };
 
-const INITIAL_FAVORITES: Record<string, FavStatus> = {
-  "forno-verde": "todo",
-  "miso-co": "todo",
-  "green-corner": "todo",
-};
-
+const DEFAULT_COORDINATES = { latitude: 45.5019, longitude: -73.5674 };
 const Ctx = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [onboarded, setOnboarded] = useState(false);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [favorites, setFavorites] = useState<Record<string, FavStatus>>(INITIAL_FAVORITES);
+  const [favorites, setFavorites] = useState<Record<string, FavStatus>>({});
+  const [coordinates, setCoordinates] = useState(DEFAULT_COORDINATES);
+  const [location, setLocation] = useState("Montréal, Québec");
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loadingRestaurants, setLoadingRestaurants] = useState(false);
+  const [hasMoreRestaurants, setHasMoreRestaurants] = useState(false);
+  const [loadingMoreRestaurants, setLoadingMoreRestaurants] = useState(false);
+  const [restaurantError, setRestaurantError] = useState<string | null>(null);
+  const [attribution, setAttribution] = useState("© OpenStreetMap contributors");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const patchFilters = useCallback((p: Partial<Filters>) => setFilters((f) => ({ ...f, ...p })), []);
   const resetFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
@@ -40,20 +59,99 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = useMemo<AppState>(
-    () => ({
-      location: "Montréal, Québec",
-      onboarded,
-      completeOnboarding,
-      filters,
-      setFilters,
-      patchFilters,
-      resetFilters,
-      favorites,
-      toggleFavorite,
-    }),
-    [onboarded, completeOnboarding, filters, patchFilters, resetFilters, favorites, toggleFavorite]
-  );
+  const requestDeviceLocation = useCallback(async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) return false;
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      if (place) setLocation([place.city, place.region].filter(Boolean).join(", ") || "Ma position");
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    void Location.getForegroundPermissionsAsync().then((permission) => {
+      if (permission.granted) void requestDeviceLocation();
+    }).catch(() => undefined);
+  }, [requestDeviceLocation]);
+
+  const refreshRestaurants = useCallback(async () => {
+    setLoadingRestaurants(true);
+    setRestaurantError(null);
+    try {
+      const params = {
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        radiusKm: Math.min(10, Math.max(0.1, filters.maxDistance)),
+        limit: 30,
+        offset: 0,
+      };
+      const result = searchQuery.trim().length >= 2
+        ? await searchRestaurants({ ...params, query: searchQuery.trim() })
+        : await getNearbyRestaurants(params);
+      setRestaurants(result.restaurants);
+      setHasMoreRestaurants(result.hasMore);
+      setAttribution(result.attribution);
+    } catch (error) {
+      setRestaurantError(error instanceof ApiError ? error.message : "Impossible de charger les restaurants.");
+      setRestaurants([]);
+      setHasMoreRestaurants(false);
+    } finally {
+      setLoadingRestaurants(false);
+    }
+  }, [coordinates.latitude, coordinates.longitude, filters.maxDistance, searchQuery]);
+
+  const loadMoreRestaurants = useCallback(async () => {
+    if (!hasMoreRestaurants || loadingMoreRestaurants || loadingRestaurants) return;
+    setLoadingMoreRestaurants(true);
+    try {
+      const params = {
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        radiusKm: Math.min(10, Math.max(0.1, filters.maxDistance)),
+        limit: 30,
+        offset: restaurants.length,
+      };
+      const result = searchQuery.trim().length >= 2
+        ? await searchRestaurants({ ...params, query: searchQuery.trim() })
+        : await getNearbyRestaurants(params);
+      setRestaurants((previous) => {
+        const seen = new Set(previous.map((restaurant) => restaurant.id));
+        return [...previous, ...result.restaurants.filter((restaurant) => !seen.has(restaurant.id))];
+      });
+      setHasMoreRestaurants(result.hasMore);
+    } catch (error) {
+      setRestaurantError(error instanceof ApiError ? error.message : "Impossible de charger la suite des résultats.");
+    } finally {
+      setLoadingMoreRestaurants(false);
+    }
+  }, [
+    hasMoreRestaurants, loadingMoreRestaurants, loadingRestaurants, coordinates.latitude,
+    coordinates.longitude, filters.maxDistance, restaurants.length, searchQuery,
+  ]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { void refreshRestaurants(); }, searchQuery.trim().length >= 2 ? 450 : 0);
+    return () => clearTimeout(timer);
+  }, [refreshRestaurants, searchQuery]);
+
+  const value = useMemo<AppState>(() => ({
+    location, coordinates, onboarded, completeOnboarding, filters, setFilters, patchFilters, resetFilters,
+    favorites, toggleFavorite, restaurants, loadingRestaurants, hasMoreRestaurants, loadingMoreRestaurants,
+    loadMoreRestaurants, restaurantError, attribution, refreshRestaurants, requestDeviceLocation,
+    searchQuery, setSearchQuery,
+  }), [
+    location, coordinates, onboarded, completeOnboarding, filters, patchFilters, resetFilters,
+    favorites, toggleFavorite, restaurants, loadingRestaurants, hasMoreRestaurants, loadingMoreRestaurants,
+    loadMoreRestaurants, restaurantError, attribution, refreshRestaurants, requestDeviceLocation, searchQuery,
+  ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
