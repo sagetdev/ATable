@@ -59,7 +59,7 @@ export default function Filtres() {
             {BUDGETS.map((b) => (
               <Chip
                 key={b}
-                label={b === 1 ? "$ · inconnu" : "$".repeat(b)}
+                label={"$".repeat(b)}
                 selected={draft.budgets.includes(b)}
                 onPress={() =>
                   patch({
