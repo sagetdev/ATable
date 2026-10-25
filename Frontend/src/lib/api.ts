@@ -102,7 +102,7 @@ function emojiFor(cuisines: string[]) {
 
 function toRestaurant(place: ApiRestaurant, lat: number, lng: number): Restaurant {
   const cuisine = cuisineLabel(place.cuisine);
-  const categories = place.cuisine.length ? place.cuisine.map((value) => value.replace(/_/g, " ")) : ["Restaurant"];
+  const cuisineAliases: Record<string, string> = { italian: "Italien", japanese: "Japonais", chinese: "Chinois", thai: "Thaï", mexican: "Mexicain", french: "Français", korean: "Coréen", vietnamese: "Vietnamien", indian: "Indien", vegetarian: "Végétarien", vegan: "Végétarien", pizza: "Italien", seafood: "Fruits de mer", burger: "Burger", regional: "Local" };\n  const categories = place.cuisine.length ? place.cuisine.map((value) => cuisineAliases[value.toLowerCase()] ?? value.replace(/_/g, " ").replace(/\\b\\w/g, (letter) => letter.toUpperCase())) : ["Restaurant"];
   const price = (place.priceLevel && place.priceLevel >= 1 && place.priceLevel <= 4 ? place.priceLevel : 1) as 1 | 2 | 3 | 4;
   return {
     id: place.id,
@@ -117,7 +117,7 @@ function toRestaurant(place: ApiRestaurant, lat: number, lng: number): Restauran
     distanceKm: distanceKm(lat, lng, place.latitude, place.longitude),
     address: place.address ?? undefined,
     website: place.websiteUrl ?? undefined,
-    about: "Informations fournies par OpenStreetMap. Les notes, menus et horaires ne sont pas toujours renseignés.",
+    about: "Informations issues d’OpenStreetMap. Les notes, menus, horaires et prix ne sont pas toujours renseignés.",\n    priceKnown: place.priceLevel !== null,\n    latitude: place.latitude,\n    longitude: place.longitude,\n    phone: place.phone ?? undefined,\n    openingHours: place.openingHours ?? undefined,\n    wikidataId: place.wikidataId ?? undefined,\n    imageUrl: place.imageUrl ?? undefined,\n    attribution: place.attribution,
   };
 }
 
