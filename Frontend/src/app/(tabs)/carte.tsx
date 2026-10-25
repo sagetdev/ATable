@@ -18,13 +18,14 @@ const pct = (x: number) => `${(x / 390) * 100}%` as const;
 
 export default function Carte() {
   const router = useRouter();
-  const { restaurants, coordinates, searchQuery, setSearchQuery, loadingRestaurants, restaurantError, filters } = useApp();\n  const visibleRestaurants = useMemo(() => filterRestaurants(restaurants, filters), [restaurants, filters]);
+  const { restaurants, coordinates, searchQuery, setSearchQuery, loadingRestaurants, restaurantError, filters } = useApp();
+  const visibleRestaurants = useMemo(() => filterRestaurants(restaurants, filters), [restaurants, filters]);
   const [selectedId, setSelectedId] = useState("");
   const selected = visibleRestaurants.find((r) => r.id === selectedId) ?? visibleRestaurants[0];
 
   const pins = useMemo(() => {
-    if (!restaurants.length) return [];
-    const lats = restaurants.map((r) => r.latitude ?? coordinates.latitude);
+    if (!visibleRestaurants.length) return [];
+    const lats = visibleRestaurants.map((r) => r.latitude ?? coordinates.latitude);
     const lngs = visibleRestaurants.map((r) => r.longitude ?? coordinates.longitude);
     const minLat = Math.min(...lats) - 0.003;
     const maxLat = Math.max(...lats) + 0.003;
