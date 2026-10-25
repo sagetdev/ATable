@@ -35,8 +35,8 @@ export function RestaurantCard({ restaurant: r, favorite, onToggleFavorite }: Pr
           <Text className="text-[12px] font-inter-semibold text-forest-500">{r.rating > 0 ? `★ ${fmt(r.rating)}` : "Note indisponible"}</Text>
           <Text className="ml-[18px] text-[11px] text-muted">· {fmt(r.distanceKm)} km</Text>
         </View>
-        <Pressable onPress={() => r.menu?.length ? router.push(toMenu(r.id)) : router.push(toRestaurant(r.id))} className="flex-row items-center">
-          <Text className="text-[11px] font-inter-semibold text-forest-500">{r.menu?.length ? "Voir le menu" : "Voir la fiche"}</Text>
+        <Pressable onPress={() => router.push(toMenu(r.id))} className="flex-row items-center">
+          <Text className="text-[11px] font-inter-semibold text-forest-500">"Menu / site officiel"</Text>
           <Feather name="arrow-up-right" size={11} color="#246747" style={{ marginLeft: 5 }} />
         </Pressable>
       </View>
