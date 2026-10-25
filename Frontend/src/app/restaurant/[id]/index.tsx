@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/Text";
 import { Button } from "@/components/ui/Button";
 import { LinkBadge, StatusBadge } from "@/components/ui/Badge";
-import { getRestaurant } from "@/data/restaurants";
+import { useApp } from "@/store/AppContext";
 import { isOpenNow } from "@/lib/filters";
 import { TONE_BG } from "@/lib/tones";
 import { fmt } from "@/lib/format";
@@ -24,7 +24,7 @@ export default function FicheRestaurant() {
   if (!r) {
     return (
       <View className="flex-1 items-center justify-center bg-canvas-50">
-        <Text className="text-[14px] text-muted">Restaurant introuvable.</Text>
+        <Text className="text-[14px] text-muted">{loadingRestaurants ? "Chargement de la fiche…" : "Restaurant introuvable. Reviens à la découverte et réessaie."}</Text>
       </View>
     );
   }
@@ -58,12 +58,12 @@ export default function FicheRestaurant() {
           <Text className="mt-[3px] text-[12px] text-muted">{r.descriptor ?? r.cuisine}</Text>
 
           <View className="mt-[14px] flex-row items-baseline">
-            <Text className="text-[13px] font-inter-semibold text-forest-500">★ {fmt(r.rating)}</Text>
+            <Text className="text-[13px] font-inter-semibold text-forest-500">{r.rating > 0 ? `★ ${fmt(r.rating)}` : "Note non disponible"}</Text>
             {r.reviews ? <Text className="ml-[17px] text-[11px] text-muted">({r.reviews} avis)</Text> : null}
             <Text className="ml-[19px] text-[11px] text-muted">· {fmt(r.distanceKm)} km</Text>
           </View>
 
-          {r.hours || r.website ? (
+          {r.website ? (
             <View className="mt-[16px] flex-row gap-[11px]">
               {r.hours ? (
                 <StatusBadge open={open} until={r.hours.close} opensAt={r.hours.open} />
