@@ -37,9 +37,15 @@ app.get("/", (_req, res) => {
   });
 });
 
+// Routes canoniques versionnées.
 app.use("/api/v1/health", healthRoutes);
 app.use("/api/v1/restaurants", restaurantSearchLimiter);
 app.use("/api/v1/restaurants", restaurantRoutes);
+
+// Compatibilité avec les clients qui utilisent encore le préfixe /api.
+app.use("/api/health", healthRoutes);
+app.use("/api/restaurants", restaurantSearchLimiter);
+app.use("/api/restaurants", restaurantRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({
