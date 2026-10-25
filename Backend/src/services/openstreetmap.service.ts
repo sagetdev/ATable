@@ -1,6 +1,9 @@
+// Public Overpass instances are best-effort and may be busy. Try independent
+// providers so a temporary outage of one host does not block restaurant search.
 const OVERPASS_ENDPOINTS = [
+  "https://overpass.private.coffee/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
 ];
 
 export type RestaurantPlace = {
@@ -93,7 +96,7 @@ async function executeOverpass(query: string): Promise<OverpassResponse> {
           Accept: "application/json",
         },
         body: new URLSearchParams({ data: query }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(9000),
       });
 
       if (response.status === 429 || response.status === 504 || response.status >= 500) {
@@ -148,7 +151,7 @@ function paginateElements(elements: OsmElement[], limit: number, offset = 0) {
 function buildAmenityQuery(locationFilter: string, namePattern?: string): string {
   const nameFilter = namePattern === undefined ? "" : `["name"~"${namePattern}",i]`;
   return `
-[out:json][timeout:12];
+[out:json][timeout:8];
 (
   node["amenity"~"^(restaurant|fast_food|food_court)$"]${nameFilter}${locationFilter};
   way["amenity"~"^(restaurant|fast_food|food_court)$"]${nameFilter}${locationFilter};
