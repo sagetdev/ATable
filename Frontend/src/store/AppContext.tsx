@@ -18,7 +18,7 @@ type AppState = {
   favorites: Record<string, FavStatus>;
   toggleFavorite: (id: string) => void;
   restaurants: Restaurant[];
-  loadingRestaurants: boolean;
+  loadingRestaurants: boolean;\n  hasMoreRestaurants: boolean;\n  loadingMoreRestaurants: boolean;\n  loadMoreRestaurants: () => Promise<void>;
   restaurantError: string | null;
   attribution: string;
   refreshRestaurants: () => Promise<void>;
@@ -37,7 +37,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [coordinates, setCoordinates] = useState(DEFAULT_COORDINATES);
   const [location, setLocation] = useState("Montréal, Québec");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [loadingRestaurants, setLoadingRestaurants] = useState(false);
+  const [loadingRestaurants, setLoadingRestaurants] = useState(false);\n  const [hasMoreRestaurants, setHasMoreRestaurants] = useState(false);\n  const [loadingMoreRestaurants, setLoadingMoreRestaurants] = useState(false);
   const [restaurantError, setRestaurantError] = useState<string | null>(null);
   const [attribution, setAttribution] = useState("© OpenStreetMap contributors");
   const [searchQuery, setSearchQuery] = useState("");
