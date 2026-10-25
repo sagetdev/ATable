@@ -28,7 +28,7 @@ const ENTERPRISE_FIELDS = [
   "places.regularOpeningHours",
   "places.priceLevel",
 ].join(",");
-const REQUEST_TIMEOUT_MS = 3000;
+const REQUEST_TIMEOUT_MS = 1800;
 
 function normalizeName(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -102,13 +102,14 @@ async function enrichOne(restaurant: RestaurantPlace, apiKey: string): Promise<R
   const candidates = (payload.places ?? [])
     .filter((place) => matchesRestaurant(place, restaurant))
     .sort((a, b) => {
-      const aDistance = a.location?.latitude !== undefined && a.location.longitude !== undefined
-        ? distanceMeters(restaurant.latitude, restaurant.longitude, a.location.latitude, a.location.longitude)
-        : Number.MAX_SAFE_INTEGER;
-      const bDistance = b.location?.latitude !== undefined && b.location.longitude !== undefined
-        ? distanceMeters(restaurant.latitude, restaurant.longitude, b.location.latitude, b.location.longitude)
-        : Number.MAX_SAFE_INTEGER;
-      return aDistance - bDistance;
+      const distanceFor = (place: GooglePlace) => {
+        const lat = place.location?.latitude;
+        const lng = place.location?.longitude;
+        return typeof lat === "number" && typeof lng === "number"
+          ? distanceMeters(restaurant.latitude, restaurant.longitude, lat, lng)
+          : Number.MAX_SAFE_INTEGER;
+      };
+      return distanceFor(a) - distanceFor(b);
     });
   const place = candidates[0];
   if (!place) return restaurant;
