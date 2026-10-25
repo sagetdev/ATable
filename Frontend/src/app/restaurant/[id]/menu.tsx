@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Linking, Pressable, ScrollView, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { Screen } from "@/components/ui/Screen";
@@ -38,7 +38,7 @@ export default function MenuRestaurant() {
       <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
         <Text className="mt-[14px] px-[21px] text-[12px] text-muted">{r?.name ?? "Restaurant"}</Text>
         {r?.website ? (
-          <Pressable onPress={() => import("react-native").then(({ Linking }) => Linking.openURL(r.website!))} className="mx-[20px] mt-[10px]">
+          <Pressable onPress={() => Linking.openURL(r.website!)} className="mx-[20px] mt-[10px]">
             <Text className="text-[12px] font-inter-semibold text-forest-700">Consulter le site officiel ↗</Text>
           </Pressable>
         ) : null}
