@@ -8,7 +8,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { MapPin } from "@/components/MapPin";
 import { TONE_BG } from "@/lib/tones";
 import { fmt } from "@/lib/format";
-import { toRestaurant } from "@/lib/routes";
+import { toRestaurant } from "@/lib/routes";\nimport { filterRestaurants } from "@/lib/filters";
 import { useApp } from "@/store/AppContext";
 
 const H_ROADS = [42, 125, 208, 291, 374, 457, 540];
@@ -17,26 +17,26 @@ const pct = (x: number) => `${(x / 390) * 100}%` as const;
 
 export default function Carte() {
   const router = useRouter();
-  const { restaurants, coordinates, searchQuery, setSearchQuery, loadingRestaurants, restaurantError } = useApp();
+  const { restaurants, coordinates, searchQuery, setSearchQuery, loadingRestaurants, restaurantError, filters } = useApp();\n  const visibleRestaurants = useMemo(() => filterRestaurants(restaurants, filters), [restaurants, filters]);
   const [selectedId, setSelectedId] = useState("");
-  const selected = restaurants.find((r) => r.id === selectedId) ?? restaurants[0];
+  const selected = visibleRestaurants.find((r) => r.id === selectedId) ?? visibleRestaurants[0];
 
   const pins = useMemo(() => {
     if (!restaurants.length) return [];
     const lats = restaurants.map((r) => r.latitude ?? coordinates.latitude);
-    const lngs = restaurants.map((r) => r.longitude ?? coordinates.longitude);
+    const lngs = visibleRestaurants.map((r) => r.longitude ?? coordinates.longitude);
     const minLat = Math.min(...lats) - 0.003;
     const maxLat = Math.max(...lats) + 0.003;
     const minLng = Math.min(...lngs) - 0.003;
     const maxLng = Math.max(...lngs) + 0.003;
-    return restaurants.map((restaurant, index) => {
+    return visibleRestaurants.map((restaurant, index) => {
       const lat = restaurant.latitude ?? coordinates.latitude;
       const lng = restaurant.longitude ?? coordinates.longitude;
       const x = 28 + ((lng - minLng) / Math.max(maxLng - minLng, 0.006)) * 300;
       const y = 75 + (1 - (lat - minLat) / Math.max(maxLat - minLat, 0.006)) * 365;
       return { id: restaurant.id, restaurantId: restaurant.id, emoji: restaurant.emoji, x: Math.round(x), y: Math.round(y), orange: index === 0 };
     });
-  }, [restaurants, coordinates.latitude, coordinates.longitude]);
+  }, [visibleRestaurants, coordinates.latitude, coordinates.longitude]);
 
   return (
     <Screen>
