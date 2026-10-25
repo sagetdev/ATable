@@ -8,13 +8,13 @@ import { SearchField } from "@/components/ui/SearchField";
 import { Chip } from "@/components/ui/Chip";
 import { MenuItem } from "@/components/MenuItem";
 import { BottomNav } from "@/components/BottomNav";
-import { getRestaurant } from "@/data/restaurants";
+import { useApp } from "@/store/AppContext";
 import { TAB_HREF } from "@/lib/routes";
 
 export default function MenuRestaurant() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const r = getRestaurant(id);
+  const { restaurants } = useApp();\n  const r = restaurants.find((restaurant) => restaurant.id === id);
   const [category, setCategory] = useState("Tout");
   const [query, setQuery] = useState("");
 
@@ -62,12 +62,12 @@ export default function MenuRestaurant() {
           items.map((m) => <MenuItem key={m.id} item={m} />)
         ) : (
           <Text className="px-[21px] text-[12px] text-muted">
-            {r?.menu?.length ? "Aucun plat dans cette catégorie." : "Menu indisponible pour le moment."}
+            {r?.menu?.length ? "Aucun plat dans cette catégorie." : "Aucun menu structuré n’est disponible pour cette adresse. Consulte le site officiel s’il est renseigné sur la fiche."}
           </Text>
         )}
 
         <View className="mx-[19px] mt-[4px] h-[34px] justify-center rounded-[10px] bg-accent-mint px-[11px]">
-          <Text className="text-[10px] font-inter-medium text-forest-500">Prix indicatifs · source à vérifier</Text>
+          <Text className="text-[10px] font-inter-medium text-forest-500">Menu non fourni par OpenStreetMap · consulte le site officiel du restaurant</Text>
         </View>
       </ScrollView>
 
