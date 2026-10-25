@@ -1,12 +1,15 @@
+// Public Overpass instances are best-effort and may be busy. Try independent
+// providers so a temporary outage of one host does not block restaurant search.
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.nchc.org.tw/api/interpreter",
 ];
 
 export type RestaurantPlace = {
   id: string;
   sourceId: string;
-  source: "openstreetmap";
+  source: "openstreetmap" | "google";
   name: string;
   address: string | null;
   latitude: number;
@@ -17,9 +20,12 @@ export type RestaurantPlace = {
   openingHours: string | null;
   wikidataId: string | null;
   imageUrl: string | null;
+  imageAttribution?: string | null;
+  imageAttributionUrl?: string | null;
   rating: number | null;
-  priceLevel: null;
-  attribution: "© OpenStreetMap contributors";
+  reviewCount: number | null;
+  priceLevel: number | null;
+  attribution: string;
 };
 
 type OsmElement = {
@@ -73,66 +79,88 @@ function normalizeElement(element: OsmElement): RestaurantPlace | null {
     websiteUrl: tags.website ?? tags["contact:website"] ?? null,
     openingHours: tags.opening_hours ?? null,
     wikidataId: tags.wikidata ?? null,
-    imageUrl: null,
+    imageUrl: /^https?:\/\//i.test(tags.image ?? "") ? tags.image ?? null : null,
+    imageAttribution: null,
+    imageAttributionUrl: null,
     rating: null,
+    reviewCount: null,
     priceLevel: null,
     attribution: "© OpenStreetMap contributors",
   };
 }
 
 async function executeOverpass(query: string): Promise<OverpassResponse> {
-  let lastError: unknown;
+  // Never queue mirrors sequentially: one slow provider used to add 9 seconds
+  // per mirror and could push the API route over the hosting request deadline.
+  const requests = OVERPASS_ENDPOINTS.map(async (endpoint) => {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "User-Agent": "ATable/1.0 (restaurant discovery app)",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({ data: query }),
+      signal: AbortSignal.timeout(6500),
+    });
 
-  for (const endpoint of OVERPASS_ENDPOINTS) {
+    if (!response.ok) {
+      throw new Error(`OVERPASS_HTTP_${response.status}`);
+    }
+
+    let payload: unknown;
     try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-          "User-Agent": "ATable/1.0 (restaurant discovery app)",
-          Accept: "application/json",
-        },
-        body: new URLSearchParams({ data: query }),
-        signal: AbortSignal.timeout(15000),
-      });
+      payload = await response.json();
+    } catch {
+      throw new Error("OVERPASS_INVALID_RESPONSE");
+    }
 
-      if (response.status === 429 || response.status === 504 || response.status >= 500) {
-        lastError = new Error(`OVERPASS_HTTP_${response.status}`);
-        continue;
-      }
+    if (
+      !payload ||
+      typeof payload !== "object" ||
+      !Array.isArray((payload as OverpassResponse).elements)
+    ) {
+      throw new Error("OVERPASS_INVALID_RESPONSE");
+    }
 
-      if (!response.ok) {
-        throw new Error(`OVERPASS_HTTP_${response.status}`);
-      }
+    return payload as OverpassResponse;
+  });
 
-      let payload: unknown;
-      try {
-        payload = await response.json();
-      } catch {
-        lastError = new Error("OVERPASS_INVALID_RESPONSE");
-        continue;
-      }
+  const results = await Promise.allSettled(requests);
 
-      if (
-        !payload ||
-        typeof payload !== "object" ||
-        !Array.isArray((payload as OverpassResponse).elements)
-      ) {
-        lastError = new Error("OVERPASS_INVALID_RESPONSE");
-        continue;
-      }
-
-      return payload as OverpassResponse;
-    } catch (error) {
-      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
-        lastError = new Error("OVERPASS_TIMEOUT");
-      } else {
-        lastError = error;
-      }
+  // Prefer a mirror that actually returned results. A fast, empty mirror
+  // should not hide data returned by another mirror.
+  for (const result of results) {
+    if (result.status === "fulfilled" && (result.value.elements?.length ?? 0) > 0) {
+      return result.value;
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("OVERPASS_UNAVAILABLE");
+  // An empty result is still a valid search result if every responding mirror
+  // found nothing. Only report provider failure when all mirrors failed.
+  const emptyResponse = results.find(
+    (result): result is PromiseFulfilledResult<OverpassResponse> =>
+      result.status === "fulfilled",
+  );
+  if (emptyResponse) return emptyResponse.value;
+
+  const errors = results
+    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+    .map((result) => result.reason);
+  const timeout = errors.some(
+    (error) => error instanceof Error &&
+      (error.name === "TimeoutError" || error.name === "AbortError"),
+  );
+  if (timeout) throw new Error("OVERPASS_TIMEOUT");
+
+  const statusError = errors.find(
+    (error) => error instanceof Error && /OVERPASS_HTTP_(429|502|503|504|5\d\d)/.test(error.message),
+  );
+  if (statusError instanceof Error) throw statusError;
+
+  throw errors.find((error) => error instanceof Error) instanceof Error
+    ? errors.find((error) => error instanceof Error) as Error
+    : new Error("OVERPASS_UNAVAILABLE");
 }
 
 function paginateElements(elements: OsmElement[], limit: number, offset = 0) {
@@ -148,7 +176,7 @@ function paginateElements(elements: OsmElement[], limit: number, offset = 0) {
 function buildAmenityQuery(locationFilter: string, namePattern?: string): string {
   const nameFilter = namePattern === undefined ? "" : `["name"~"${namePattern}",i]`;
   return `
-[out:json][timeout:12];
+[out:json][timeout:8];
 (
   node["amenity"~"^(restaurant|fast_food|food_court)$"]${nameFilter}${locationFilter};
   way["amenity"~"^(restaurant|fast_food|food_court)$"]${nameFilter}${locationFilter};

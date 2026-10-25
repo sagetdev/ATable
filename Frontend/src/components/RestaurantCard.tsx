@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { Image, Linking, Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/Text";
@@ -19,7 +19,17 @@ export function RestaurantCard({ restaurant: r, favorite, onToggleFavorite }: Pr
     <Pressable onPress={() => router.push(toRestaurant(r.id))}
       className="mx-[18px] mb-[10px] flex-row rounded-[18px] border border-line bg-white p-[9px] active:opacity-90">
       <View className={`h-[112px] w-[104px] overflow-hidden rounded-[13px] ${TONE_BG[r.tone]}`}>
-        <View className="absolute left-0 right-0 top-[24px] items-center"><Text className="text-[34px]">{r.emoji}</Text></View>
+        {r.imageUrl ? <Image source={{ uri: r.imageUrl }} resizeMode="cover" style={{ width: "100%", height: "100%" }} /> : null}
+        {!r.imageUrl ? (
+          <View className="absolute inset-0 items-center justify-center overflow-hidden">
+            <View className="absolute -right-[23px] -top-[24px] h-[88px] w-[88px] rounded-full bg-white/30" />
+            <View className="absolute -bottom-[31px] -left-[18px] h-[90px] w-[90px] rounded-full bg-white/25" />
+            <View className="h-[58px] w-[58px] items-center justify-center rounded-[20px] border border-white/50 bg-white/45">
+              <Text className="text-[31px]">{r.emoji}</Text>
+            </View>
+            <Text numberOfLines={1} className="mt-[5px] px-[5px] text-[9px] font-inter-semibold text-forest-700">À découvrir</Text>
+          </View>
+        ) : null}
         <Pressable onPress={() => router.push(toMenu(r.id))} className="absolute bottom-[11px] left-[8px] right-[8px] h-[25px] items-center justify-center rounded-[8px] bg-white">
           <Text className="text-[9px] font-inter-bold text-forest-700">MENU</Text>
         </Pressable>
@@ -37,6 +47,11 @@ export function RestaurantCard({ restaurant: r, favorite, onToggleFavorite }: Pr
           <Text className="text-[11px] font-inter-semibold text-forest-500">Menu / site officiel</Text>
           <Feather name="arrow-up-right" size={11} color="#246747" style={{ marginLeft: 5 }} />
         </Pressable>
+        {r.imageAttribution ? (
+          <Pressable onPress={() => { if (r.imageAttributionUrl) void Linking.openURL(r.imageAttributionUrl); }}>
+            <Text numberOfLines={1} className="mt-[3px] text-[8px] text-muted">Photo : {r.imageAttribution}</Text>
+          </Pressable>
+        ) : null}
       </View>
       <Pressable onPress={onToggleFavorite} hitSlop={10} className="absolute right-[12px] top-[10px]">
         <Ionicons name={favorite ? "heart" : "heart-outline"} size={24} color="#174D38" />
