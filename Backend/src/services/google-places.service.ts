@@ -185,7 +185,11 @@ async function resolveGooglePhoto(place: GooglePlace, apiKey: string): Promise<P
     if (!response.ok) return { imageUrl: null, imageAttribution: null, imageAttributionUrl: null };
     const media = await response.json() as { photoUri?: string };
     const attribution = place.photos?.find((photo) => photo.name === photoName)?.authorAttributions?.find((item) => item.displayName);
-    return { imageUrl: media.photoUri ?? null, imageAttribution: attribution?.displayName ?? null, imageAttributionUrl: attribution?.uri ?? null };
+    return {
+      imageUrl: media.photoUri ?? null,
+      imageAttribution: attribution?.displayName ?? "Google Maps",
+      imageAttributionUrl: attribution?.uri ?? null,
+    };
   } catch (error) {
     console.warn(error instanceof Error && error.message === "GOOGLE_PLACES_DAILY_LIMIT_REACHED" ? "[Google Places photos] daily cap reached." : "[Google Places photos] unable to retrieve a photo.");
     return { imageUrl: null, imageAttribution: null, imageAttributionUrl: null };
