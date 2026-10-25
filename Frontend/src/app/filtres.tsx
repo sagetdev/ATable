@@ -21,7 +21,7 @@ export default function Filtres() {
   const { filters, setFilters, restaurants } = useApp();
   const [draft, setDraft] = useState(filters);
   const patch = (p: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...p }));
-  const count = useMemo(() => filterRestaurants(restaurants, draft).length, [draft]);
+  const count = useMemo(() => filterRestaurants(restaurants, draft).length, [restaurants, draft]);
 
   const apply = () => {
     setFilters(draft);
