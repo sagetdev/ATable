@@ -6,6 +6,7 @@ import {
 } from "../services/openstreetmap.service";
 import { getWikidataEnrichment } from "../services/wikidata.service";
 import { getFoursquareEnrichment } from "../services/foursquare.service";
+import { enrichRestaurantsWithGooglePlaces } from "../services/google-places.service";
 
 const router = Router();
 
@@ -62,9 +63,10 @@ router.get("/nearby", async (req, res) => {
       latitude: parsed.data.lat, longitude: parsed.data.lng, radius: parsed.data.radius,
       limit: parsed.data.limit, offset: parsed.data.offset,
     });
+    const data = await enrichRestaurantsWithGooglePlaces(result.data);
     return res.json({
       success: true,
-      data: result.data,
+      data,
       meta: {
         total: result.data.length, limit: parsed.data.limit, offset: parsed.data.offset,
         hasMore: result.hasMore, source: "openstreetmap",
@@ -90,9 +92,10 @@ router.get("/search", async (req, res) => {
       query: parsed.data.q, latitude: parsed.data.lat, longitude: parsed.data.lng,
       radius: parsed.data.radius, limit: parsed.data.limit, offset: parsed.data.offset,
     });
+    const data = await enrichRestaurantsWithGooglePlaces(result.data);
     return res.json({
       success: true,
-      data: result.data,
+      data,
       meta: {
         total: result.data.length, limit: parsed.data.limit, offset: parsed.data.offset,
         hasMore: result.hasMore, source: "openstreetmap",
