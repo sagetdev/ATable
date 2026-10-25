@@ -36,3 +36,18 @@ npx expo start -c
 - `app/(tabs)/profil.tsx` — 07 Paramètres
 - `components/` — Button, IconButton, SearchField, Chip, Badge, Checkbox, Slider, RestaurantCard, MenuItem, RadiusSelector, MapPin, BottomNav, SettingRow, NoResults
 - `data/restaurants.ts` — données d’exemple du kit
+
+
+## Connexion au backend À Table
+
+Le frontend consomme maintenant les routes `/api/v1/restaurants/nearby`, `/api/v1/restaurants/search` et `/api/v1/restaurants/wikidata/:entityId`.
+
+1. Copie `.env.example` en `.env`.
+2. Configure `EXPO_PUBLIC_API_URL` :
+   - Émulateur Android : `http://10.0.2.2:4000/api/v1`
+   - Téléphone physique : `http://IP_LOCALE_DU_PC:4000/api/v1` (PC et téléphone sur le même Wi-Fi)
+   - Backend déployé : URL publique du backend terminant par `/api/v1`.
+3. Démarre le backend dans `Backend` avec `npm run dev`.
+4. Redémarre Expo avec `npx expo start -c` après toute modification de `.env`.
+
+La découverte, la recherche textuelle, le rayon, les filtres, les favoris de session, la fiche détaillée et l’enrichissement Wikidata utilisent les données de l’API. OpenStreetMap ne fournit généralement ni notes, ni prix, ni menus structurés ; l’interface les marque comme inconnus au lieu d’inventer des valeurs. La carte actuelle est une visualisation schématique des coordonnées réelles, pas encore un fond cartographique routier.
