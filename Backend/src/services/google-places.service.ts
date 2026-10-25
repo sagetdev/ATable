@@ -4,6 +4,8 @@ import type { RestaurantPlace } from "./openstreetmap.service";
 type GooglePlace = {
   id?: string;
   displayName?: { text?: string };
+  primaryTypeDisplayName?: { text?: string };
+  types?: string[];
   location?: { latitude?: number; longitude?: number };
   rating?: number;
   userRatingCount?: number;
@@ -13,22 +15,48 @@ type GooglePlace = {
   priceLevel?: string;
   formattedAddress?: string;
 };
-type GoogleSearchResponse = { places?: GooglePlace[] };
+type GoogleSearchResponse = { places?: GooglePlace[]; nextPageToken?: string };
 
 const GOOGLE_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
-const ENTERPRISE_FIELDS = [
-  "places.id",
-  "places.displayName",
-  "places.location",
-  "places.formattedAddress",
-  "places.rating",
-  "places.userRatingCount",
-  "places.websiteUri",
-  "places.nationalPhoneNumber",
-  "places.regularOpeningHours",
-  "places.priceLevel",
+const BASIC_FIELDS = [
+  "places.id", "places.displayName", "places.location", "places.formattedAddress",
+  "places.primaryTypeDisplayName", "places.types", "nextPageToken",
 ].join(",");
-const REQUEST_TIMEOUT_MS = 1800;
+const ENTERPRISE_FIELDS = [
+  ...BASIC_FIELDS.split(","),
+  "places.rating", "places.userRatingCount", "places.websiteUri",
+  "places.nationalPhoneNumber", "places.regularOpeningHours", "places.priceLevel",
+].join(",");
+const REQUEST_TIMEOUT_MS = 5000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const ENRICHMENT_CACHE_TTL_MS = 60 * 60 * 1000;
+const GOOGLE_ATTRIBUTION = "Google Maps Platform";
+
+let requestsToday = 0;
+let counterDay = new Date().toISOString().slice(0, 10);
+const searchCache = new Map<string, { expiresAt: number; pages: GoogleSearchResponse[] }>();
+const enrichmentCache = new Map<string, { expiresAt: number; value: RestaurantPlace }>();
+
+function utcDay(): string { return new Date().toISOString().slice(0, 10); }
+
+function reserveGoogleRequest(): void {
+  const today = utcDay();
+  if (today !== counterDay) {
+    counterDay = today;
+    requestsToday = 0;
+  }
+  if (requestsToday >= env.GOOGLE_PLACES_MAX_REQUESTS_PER_DAY) {
+    throw new Error("GOOGLE_PLACES_DAILY_LIMIT_REACHED");
+  }
+  // Increment before network I/O so concurrent requests cannot exceed this process's cap.
+  requestsToday += 1;
+}
+
+function requireApiKey(): string {
+  const key = env.GOOGLE_PLACES_API_KEY?.trim();
+  if (!key) throw new Error("GOOGLE_PLACES_API_KEY_MISSING");
+  return key;
+}
 
 function normalizeName(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -56,21 +84,147 @@ function priceLevelNumber(value: string | undefined): number | null {
 
 function matchesRestaurant(place: GooglePlace, restaurant: RestaurantPlace): boolean {
   const googleName = normalizeName(place.displayName?.text ?? "");
-  const osmName = normalizeName(restaurant.name);
-  if (!googleName || !osmName) return false;
-
-  const exactName = googleName === osmName;
-  const similarName = Math.min(googleName.length, osmName.length) >= 6 &&
-    (googleName.includes(osmName) || osmName.includes(googleName));
+  const targetName = normalizeName(restaurant.name);
+  if (!googleName || !targetName) return false;
+  const exactName = googleName === targetName;
+  const similarName = Math.min(googleName.length, targetName.length) >= 6 &&
+    (googleName.includes(targetName) || targetName.includes(googleName));
   if (!exactName && !similarName) return false;
-
   const lat = place.location?.latitude;
   const lng = place.location?.longitude;
   if (typeof lat !== "number" || typeof lng !== "number") return exactName;
   return distanceMeters(restaurant.latitude, restaurant.longitude, lat, lng) <= 350;
 }
 
+function toGoogleRestaurant(place: GooglePlace): RestaurantPlace | null {
+  const name = place.displayName?.text?.trim();
+  const latitude = place.location?.latitude;
+  const longitude = place.location?.longitude;
+  if (!place.id || !name || typeof latitude !== "number" || typeof longitude !== "number") return null;
+  const rawTypes = (place.types ?? []).filter((type) =>
+    /restaurant|food|cafe|bakery|meal_takeaway|meal_delivery|bar/.test(type),
+  );
+  const cuisine = rawTypes
+    .filter((type) => !/establishment|point_of_interest|food|restaurant$/.test(type))
+    .map((type) => type.replace(/_restaurant$/, "").replace(/_/g, " "));
+  const displayType = place.primaryTypeDisplayName?.text;
+  if (displayType && !cuisine.length) cuisine.push(displayType);
+  return {
+    id: "google:" + place.id,
+    sourceId: place.id,
+    source: "google",
+    name,
+    address: place.formattedAddress ?? null,
+    latitude,
+    longitude,
+    cuisine,
+    phone: place.nationalPhoneNumber ?? null,
+    websiteUrl: place.websiteUri ?? null,
+    openingHours: place.regularOpeningHours?.weekdayDescriptions?.join(" · ") ?? null,
+    wikidataId: null,
+    imageUrl: null,
+    rating: typeof place.rating === "number" ? place.rating : null,
+    reviewCount: typeof place.userRatingCount === "number" ? place.userRatingCount : null,
+    priceLevel: priceLevelNumber(place.priceLevel),
+    attribution: GOOGLE_ATTRIBUTION,
+  };
+}
+
+function cacheKey(input: { query: string; latitude: number; longitude: number; radius: number; enterprise: boolean }): string {
+  return [
+    normalizeName(input.query), input.latitude.toFixed(3), input.longitude.toFixed(3),
+    input.radius, input.enterprise ? "enterprise" : "basic",
+  ].join(":");
+}
+
+async function fetchSearchPage(
+  apiKey: string,
+  query: string,
+  latitude: number,
+  longitude: number,
+  radius: number,
+  pageToken?: string,
+): Promise<GoogleSearchResponse> {
+  reserveGoogleRequest();
+  const response = await fetch(GOOGLE_TEXT_SEARCH_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": env.GOOGLE_PLACES_ENTERPRISE_MODE ? ENTERPRISE_FIELDS : BASIC_FIELDS,
+    },
+    body: JSON.stringify({
+      textQuery: query,
+      pageSize: 20,
+      languageCode: "fr",
+      locationBias: { circle: { center: { latitude, longitude }, radius: Math.min(Math.max(radius, 100), 50000) } },
+      ...(pageToken ? { pageToken } : {}),
+    }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    const error = new Error("GOOGLE_PLACES_HTTP_" + response.status);
+    console.warn("[Google Places] HTTP", response.status);
+    throw error;
+  }
+  return await response.json() as GoogleSearchResponse;
+}
+
+async function searchGoogle(input: {
+  query: string; latitude: number; longitude: number; radius: number; limit: number; offset?: number;
+}): Promise<{ data: RestaurantPlace[]; hasMore: boolean }> {
+  const apiKey = requireApiKey();
+  const offset = input.offset ?? 0;
+  const key = cacheKey({ ...input, enterprise: env.GOOGLE_PLACES_ENTERPRISE_MODE });
+  let cached = searchCache.get(key);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    cached = { expiresAt: Date.now() + CACHE_TTL_MS, pages: [] };
+    searchCache.set(key, cached);
+  }
+
+  const firstPageIndex = Math.floor(offset / 20);
+  const endIndex = offset + input.limit;
+  const lastPageIndex = Math.floor(Math.max(0, endIndex - 1) / 20);
+  // Keep a single API response bounded to three new pages; normal 20-30 item
+  // frontend requests need at most two. Earlier page tokens are cached.
+  const targetPageIndex = Math.min(lastPageIndex, firstPageIndex + 2);
+  for (let index = 0; index <= targetPageIndex; index += 1) {
+    if (cached.pages[index]) continue;
+    const previous = index > 0 ? cached.pages[index - 1] : undefined;
+    const token = previous?.nextPageToken;
+    if (index > 0 && !token) break;
+    cached.pages[index] = await fetchSearchPage(apiKey, input.query, input.latitude, input.longitude, input.radius, token);
+    cached.expiresAt = Date.now() + CACHE_TTL_MS;
+  }
+
+  const places = cached.pages.flatMap((page) => page.places ?? []);
+  const data = places.slice(offset, endIndex).map(toGoogleRestaurant).filter((place): place is RestaurantPlace => place !== null);
+  const lastFetchedPage = cached.pages[Math.min(targetPageIndex, cached.pages.length - 1)];
+  const hasMore = Boolean(lastFetchedPage?.nextPageToken) && endIndex >= places.length;
+  return { data, hasMore };
+}
+
+export async function searchGoogleNearbyRestaurants(input: {
+  latitude: number; longitude: number; radius: number; limit: number; offset?: number;
+}): Promise<{ data: RestaurantPlace[]; hasMore: boolean }> {
+  return searchGoogle({
+    query: "restaurants",
+    latitude: input.latitude, longitude: input.longitude, radius: input.radius,
+    limit: input.limit, offset: input.offset,
+  });
+}
+
+export async function searchGoogleRestaurantsByText(input: {
+  query: string; latitude: number; longitude: number; radius: number; limit: number; offset?: number;
+}): Promise<{ data: RestaurantPlace[]; hasMore: boolean }> {
+  return searchGoogle(input);
+}
+
 async function enrichOne(restaurant: RestaurantPlace, apiKey: string): Promise<RestaurantPlace> {
+  const key = normalizeName(restaurant.name) + ":" + restaurant.latitude.toFixed(4) + ":" + restaurant.longitude.toFixed(4);
+  const cached = enrichmentCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
   const response = await fetch(GOOGLE_TEXT_SEARCH_URL, {
     method: "POST",
     headers: {
@@ -82,78 +236,67 @@ async function enrichOne(restaurant: RestaurantPlace, apiKey: string): Promise<R
       textQuery: restaurant.name,
       pageSize: 5,
       languageCode: "fr",
-      locationBias: {
-        circle: {
-          center: { latitude: restaurant.latitude, longitude: restaurant.longitude },
-          radius: 350,
-        },
-      },
+      locationBias: { circle: { center: { latitude: restaurant.latitude, longitude: restaurant.longitude }, radius: 350 } },
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
-
   if (!response.ok) {
-    // Enrichment is optional: provider errors must never make restaurant discovery fail.
     console.warn("[Google Places enrichment] HTTP", response.status);
     return restaurant;
   }
-
   const payload = await response.json() as GoogleSearchResponse;
-  const candidates = (payload.places ?? [])
-    .filter((place) => matchesRestaurant(place, restaurant))
+  const place = (payload.places ?? []).filter((candidate) => matchesRestaurant(candidate, restaurant))
     .sort((a, b) => {
-      const distanceFor = (place: GooglePlace) => {
-        const lat = place.location?.latitude;
-        const lng = place.location?.longitude;
+      const dist = (candidate: GooglePlace) => {
+        const lat = candidate.location?.latitude;
+        const lng = candidate.location?.longitude;
         return typeof lat === "number" && typeof lng === "number"
           ? distanceMeters(restaurant.latitude, restaurant.longitude, lat, lng)
           : Number.MAX_SAFE_INTEGER;
       };
-      return distanceFor(a) - distanceFor(b);
-    });
-  const place = candidates[0];
-  if (!place) return restaurant;
+      return dist(a) - dist(b);
+    })[0];
+  if (!place) {
+    enrichmentCache.set(key, { expiresAt: Date.now() + ENRICHMENT_CACHE_TTL_MS, value: restaurant });
+    return restaurant;
+  }
 
-  const openingHours = place.regularOpeningHours?.weekdayDescriptions?.join(" · ") ?? null;
-  const priceLevel = priceLevelNumber(place.priceLevel);
-  return {
+  const result: RestaurantPlace = {
     ...restaurant,
     address: restaurant.address ?? place.formattedAddress ?? null,
     phone: restaurant.phone ?? place.nationalPhoneNumber ?? null,
     websiteUrl: place.websiteUri ?? restaurant.websiteUrl,
-    openingHours: openingHours ?? restaurant.openingHours,
+    openingHours: place.regularOpeningHours?.weekdayDescriptions?.join(" · ") ?? restaurant.openingHours,
     rating: typeof place.rating === "number" ? place.rating : restaurant.rating,
     reviewCount: typeof place.userRatingCount === "number" ? place.userRatingCount : restaurant.reviewCount,
-    priceLevel: priceLevel ?? restaurant.priceLevel,
+    priceLevel: priceLevelNumber(place.priceLevel) ?? restaurant.priceLevel,
   };
+  enrichmentCache.set(key, { expiresAt: Date.now() + ENRICHMENT_CACHE_TTL_MS, value: result });
+  return result;
 }
 
 /**
- * Enterprise mode is deliberately opt-in. Only the first configured number of
- * results is enriched, each Google request has a short timeout, and failures
- * leave the free OpenStreetMap results untouched.
+ * Optional enrichment for OSM results. Google requests are counted against a
+ * UTC daily cap shared with Google discovery in this backend process.
  */
-export async function enrichRestaurantsWithGooglePlaces(
-  restaurants: RestaurantPlace[],
-): Promise<RestaurantPlace[]> {
-  if (!env.GOOGLE_PLACES_ENTERPRISE_MODE || !env.GOOGLE_PLACES_API_KEY?.trim()) {
-    return restaurants;
-  }
-
-  const maxResults = env.GOOGLE_PLACES_ENRICHMENT_MAX_RESULTS;
+export async function enrichRestaurantsWithGooglePlaces(restaurants: RestaurantPlace[]): Promise<RestaurantPlace[]> {
+  if (!env.GOOGLE_PLACES_ENTERPRISE_MODE || !env.GOOGLE_PLACES_API_KEY?.trim()) return restaurants;
   const apiKey = env.GOOGLE_PLACES_API_KEY.trim();
+  const maxResults = env.GOOGLE_PLACES_ENRICHMENT_MAX_RESULTS;
   const toEnrich = restaurants.slice(0, maxResults);
   const enriched = await Promise.all(toEnrich.map(async (restaurant) => {
     try {
+      // Reserve here as well so the cap is shared with discovery requests.
+      reserveGoogleRequest();
       return await enrichOne(restaurant, apiKey);
     } catch (error) {
-      console.warn(
-        "[Google Places enrichment] request failed:",
-        error instanceof Error ? error.name : "unknown error",
-      );
+      if (error instanceof Error && error.message === "GOOGLE_PLACES_DAILY_LIMIT_REACHED") {
+        console.warn("[Google Places enrichment] daily request cap reached; remaining results are unchanged.");
+        return restaurant;
+      }
+      console.warn("[Google Places enrichment] request failed:", error instanceof Error ? error.name : "unknown error");
       return restaurant;
     }
   }));
-
   return [...enriched, ...restaurants.slice(toEnrich.length)];
 }
