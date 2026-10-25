@@ -50,22 +50,29 @@ function isWithinOpeningHours(schedule: string, now: Date) {
   let open = false;
 
   for (const clause of clauses) {
-    const match = /^(?:(Mo|Tu|We|Th|Fr|Sa|Su(?:,(?:Mo|Tu|We|Th|Fr|Sa|Su))*(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)\s+)?(off|closed|24\/7|\d{1,2}:\d{2}-\d{1,2}:\d{2})$/i.exec(clause);
-    if (!match || !clauseAppliesToday(match[1], today)) continue;
-    hasMatchingRule = true;
-    const hours = match[2].toLowerCase();
+    const parts = clause.split(/\s+/);
+    const possibleDayPart = parts.length > 1 ? parts[0] : undefined;
+    const dayPart = possibleDayPart && /^(Mo|Tu|We|Th|Fr|Sa|Su)(?:[-,](?:Mo|Tu|We|Th|Fr|Sa|Su))*$/i.test(possibleDayPart)
+      ? possibleDayPart
+      : undefined;
+    const hours = (dayPart ? parts.slice(1).join(" ") : clause).toLowerCase();
+    if (!clauseAppliesToday(dayPart, today)) continue;
     if (hours === "off" || hours === "closed") {
+      hasMatchingRule = true;
       open = false;
       continue;
     }
     if (hours === "24/7") {
+      hasMatchingRule = true;
       open = true;
       continue;
     }
-    const [startText, endText] = hours.split("-");
-    const start = parseClock(startText);
-    const end = parseClock(endText);
+    const range = /^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.exec(hours);
+    if (!range) continue;
+    const start = parseClock(range[1]);
+    const end = parseClock(range[2]);
     if (start === null || end === null) continue;
+    hasMatchingRule = true;
     open = end >= start
       ? minuteOfDay >= start && minuteOfDay < end
       : minuteOfDay >= start || minuteOfDay < end;
