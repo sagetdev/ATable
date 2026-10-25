@@ -50,7 +50,6 @@ async function request<T>(path: string): Promise<ApiResponse<T>> {
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(20000),
     });
   } catch (error) {
     if (error instanceof Error && error.name === "TimeoutError") {
