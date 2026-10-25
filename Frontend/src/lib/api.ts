@@ -137,7 +137,9 @@ function toRestaurant(place: ApiRestaurant, lat: number, lng: number): Restauran
 }
 
 function buildParams(params: Record<string, string | number>) {
-  return new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString();
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => search.set(key, String(value)));
+  return search.toString();
 }
 
 export async function getNearbyRestaurants(input: {
