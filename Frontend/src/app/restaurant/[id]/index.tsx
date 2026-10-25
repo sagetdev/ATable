@@ -1,4 +1,4 @@
-import { Linking, Pressable, ScrollView, View } from "react-native";
+import { Linking, Pressable, ScrollView, View } from "react-native";\nimport { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { LinkBadge } from "@/components/ui/Badge";
 import { useApp } from "@/store/AppContext";
 import { TONE_BG } from "@/lib/tones";
-import { fmt } from "@/lib/format";
+import { fmt } from "@/lib/format";\nimport { getWikidataDetails } from "@/lib/api";
 import { TAB_HREF, toMenu } from "@/lib/routes";
 
 export default function FicheRestaurant() {
