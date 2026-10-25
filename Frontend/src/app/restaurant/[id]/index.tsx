@@ -58,11 +58,15 @@ export default function FicheRestaurant() {
   const fav = !!favorites[r.id];
   const imageUrl = r.imageUrl ?? wikidataDetails?.imageUrl ?? foursquareDetails?.imageUrl ?? undefined;
   const officialWebsite = r.website ?? wikidataDetails?.officialWebsite ?? foursquareDetails?.websiteUrl ?? undefined;
-  const imageCredit = wikidataDetails?.imageUrl
-    ? [wikidataDetails.imageArtist, wikidataDetails.imageLicense, wikidataDetails.imageSourceUrl].filter(Boolean).join(" · ")
-    : foursquareDetails?.imageUrl
-      ? [foursquareDetails.imageAttribution, foursquareDetails.imageSourceUrl].filter(Boolean).join(" · ")
-      : null;
+  const imageCredit = r.imageAttribution
+    ? r.imageAttribution
+    : wikidataDetails?.imageUrl
+      ? [wikidataDetails.imageArtist, wikidataDetails.imageLicense].filter(Boolean).join(" · ")
+      : foursquareDetails?.imageUrl
+        ? foursquareDetails.imageAttribution ?? "Foursquare"
+        : null;
+  const imageCreditUrl = r.imageAttributionUrl
+    ?? (wikidataDetails?.imageUrl ? wikidataDetails.imageSourceUrl : foursquareDetails?.imageUrl ? foursquareDetails.imageSourceUrl : null);
 
   return (
     <View className="flex-1 bg-canvas-50">
@@ -106,10 +110,7 @@ export default function FicheRestaurant() {
           ) : null}
 
           {imageCredit ? (
-            <Pressable onPress={() => {
-              const sourceUrl = wikidataDetails?.imageUrl ? wikidataDetails.imageSourceUrl : foursquareDetails?.imageSourceUrl;
-              if (sourceUrl) void Linking.openURL(sourceUrl);
-            }} className="mt-[8px]">
+            <Pressable onPress={() => { if (imageCreditUrl) void Linking.openURL(imageCreditUrl); }} className="mt-[8px]">
               <Text className="text-[9px] text-muted">Photo : {imageCredit}</Text>
             </Pressable>
           ) : null}
