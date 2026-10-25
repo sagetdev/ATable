@@ -46,18 +46,18 @@ export async function getFoursquareEnrichment(input: {
   }
   if (requestsToday >= DAILY_LIMIT) throw new Error("FOURSQUARE_DAILY_LIMIT_REACHED");
 
-  const url = new URL("https://api.foursquare.com/v3/places/search");
+  const url = new URL("https://places-api.foursquare.com/places/search");
   url.search = new URLSearchParams({
     query: input.name,
     ll: input.latitude + "," + input.longitude,
     radius: "500",
     limit: "5",
-    fields: "fsq_id,name,rating,website,photos,distance",
+    fields: "fsq_place_id,name,rating,website,photos,distance",
   }).toString();
 
   requestsToday += 1;
   const response = await fetch(url, {
-    headers: { Accept: "application/json", Authorization: apiKey },
+    headers: { Accept: "application/json", Authorization: "Bearer " + apiKey, "X-Places-Api-Version": "2025-06-17" },
     signal: AbortSignal.timeout(7000),
   });
   if (!response.ok) throw new Error("FOURSQUARE_HTTP_" + response.status);
@@ -83,7 +83,7 @@ export async function getFoursquareEnrichment(input: {
     rating: typeof candidate.rating === "number" ? candidate.rating : null,
     ratingScale: "10",
     websiteUrl: candidate.website ?? null,
-    imageUrl: photo?.prefix && photo.suffix ? photo.prefix + "600x400" + photo.suffix : null,
+    imageUrl: photo?.prefix && photo.suffix ? photo.prefix + "512" + photo.suffix : null,
     imageAttribution: photo?.attribution?.name ?? (photo ? "Foursquare" : null),
     imageSourceUrl: photo?.attribution?.url ?? null,
   };
