@@ -18,7 +18,7 @@ export default function Decouvrir() {
   const {
     location, filters, patchFilters, resetFilters, favorites, toggleFavorite,
     restaurants, loadingRestaurants, restaurantError, refreshRestaurants,
-    searchQuery, setSearchQuery, attribution,
+    searchQuery, setSearchQuery, attribution, hasMoreRestaurants, loadingMoreRestaurants, loadMoreRestaurants,
   } = useApp();
   const results = useMemo(() => filterRestaurants(restaurants, filters), [restaurants, filters]);
 
@@ -104,6 +104,14 @@ export default function Decouvrir() {
           </View>
         )}
 
+        {hasMoreRestaurants ? (
+          <Pressable onPress={() => void loadMoreRestaurants()} disabled={loadingMoreRestaurants}
+            className="mx-[20px] mt-[10px] items-center rounded-[13px] border border-line bg-white py-[13px]">
+            <Text className="text-[12px] font-inter-semibold text-forest-700">
+              {loadingMoreRestaurants ? "Chargement…" : "Afficher plus de restaurants"}
+            </Text>
+          </Pressable>
+        ) : null}
         <Text className="px-[20px] pt-[12px] text-[10px] text-muted">{attribution}</Text>
       </ScrollView>
     </Screen>
