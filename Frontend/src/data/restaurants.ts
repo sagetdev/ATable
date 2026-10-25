@@ -38,6 +38,8 @@ export type Restaurant = {
   openingHours?: string;
   wikidataId?: string;
   imageUrl?: string;
+  imageAttribution?: string;
+  imageAttributionUrl?: string;
   attribution?: string;
 };
 
