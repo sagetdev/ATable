@@ -7,21 +7,21 @@ import { Chip } from "@/components/ui/Chip";
 import { Slider } from "@/components/ui/Slider";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Button } from "@/components/ui/Button";
-import { RESTAURANTS } from "@/data/restaurants";
+
 import { DEFAULT_FILTERS, filterRestaurants } from "@/lib/filters";
 import { fmt } from "@/lib/format";
 import { useApp } from "@/store/AppContext";
 
-const CUISINES = ["Tous", "Italien", "Japonais", "Asiatique"];
+const CUISINES = ["Tous", "Italien", "Japonais", "Végétarien", "Asiatique", "Chinois", "Indien", "Mexicain"];
 const BUDGETS = [1, 2, 3, 4];
 
 export default function Filtres() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { filters, setFilters } = useApp();
+  const { filters, setFilters, restaurants } = useApp();
   const [draft, setDraft] = useState(filters);
   const patch = (p: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...p }));
-  const count = useMemo(() => filterRestaurants(RESTAURANTS, draft).length, [draft]);
+  const count = useMemo(() => filterRestaurants(restaurants, draft).length, [draft]);
 
   const apply = () => {
     setFilters(draft);
@@ -59,7 +59,7 @@ export default function Filtres() {
             {BUDGETS.map((b) => (
               <Chip
                 key={b}
-                label={"$".repeat(b)}
+                label={b === 1 ? "$ · inconnu" : "$".repeat(b)}
                 selected={draft.budgets.includes(b)}
                 onPress={() =>
                   patch({
@@ -85,12 +85,12 @@ export default function Filtres() {
             <Text className="text-[12px] font-inter-semibold text-forest-500">{draft.maxDistance} km</Text>
           </View>
           <View className="mt-[8px]">
-            <Slider value={draft.maxDistance} min={1} max={15} step={1} onChange={(v) => patch({ maxDistance: v })} />
+            <Slider value={draft.maxDistance} min={1} max={10} step={1} onChange={(v) => patch({ maxDistance: v })} />
           </View>
 
           <View className="mt-[20px] gap-[16px]">
             <Checkbox label="Ouverts maintenant" checked={draft.openNow} onChange={(v) => patch({ openNow: v })} />
-            <Checkbox label="Menu disponible" checked={draft.hasMenu} onChange={(v) => patch({ hasMenu: v })} />
+            <Checkbox label="Menu structuré disponible" checked={draft.hasMenu} onChange={(v) => patch({ hasMenu: v })} />
           </View>
 
           <Button
