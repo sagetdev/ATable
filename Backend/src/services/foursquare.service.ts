@@ -14,7 +14,7 @@ export type FoursquareEnrichment = {
 };
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = 15;
 const cache = new Map<string, { expiresAt: number; value: FoursquareEnrichment | null }>();
 let requestsToday = 0;
 let counterDay = new Date().toISOString().slice(0, 10);
