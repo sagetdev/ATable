@@ -22,6 +22,7 @@ type AppState = {
   restaurantError: string | null;
   attribution: string;
   refreshRestaurants: () => Promise<void>;
+  requestDeviceLocation: () => Promise<boolean>;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 };
@@ -53,29 +54,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    const syncDeviceLocation = async () => {
-      try {
-        const permission = await Location.getForegroundPermissionsAsync();
-        if (!permission.granted) return;
-        const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        if (!active) return;
-        setCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude });
-        const [place] = await Location.reverseGeocodeAsync({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-        if (active && place) {
-          setLocation([place.city, place.region].filter(Boolean).join(", ") || "Ma position");
-        }
-      } catch {
-        // L'application reste utilisable avec le point de départ par défaut de Montréal.
-      }
-    };
-    void syncDeviceLocation();
-    return () => { active = false; };
+  const requestDeviceLocation = useCallback(async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) return false;
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setCoordinates({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      if (place) setLocation([place.city, place.region].filter(Boolean).join(", ") || "Ma position");
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
+
+  useEffect(() => {
+    void Location.getForegroundPermissionsAsync().then((permission) => {
+      if (permission.granted) void requestDeviceLocation();
+    }).catch(() => undefined);
+  }, [requestDeviceLocation]);
 
   const refreshRestaurants = useCallback(async () => {
     setLoadingRestaurants(true);
@@ -105,32 +105,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [refreshRestaurants, searchQuery]);
 
-  const value = useMemo<AppState>(
-    () => ({
-      location,
-      coordinates,
-      onboarded,
-      completeOnboarding,
-      filters,
-      setFilters,
-      patchFilters,
-      resetFilters,
-      favorites,
-      toggleFavorite,
-      restaurants,
-      loadingRestaurants,
-      restaurantError,
-      attribution,
-      refreshRestaurants,
-      searchQuery,
-      setSearchQuery,
-    }),
-    [
-      location, coordinates, onboarded, completeOnboarding, filters, patchFilters, resetFilters,
-      favorites, toggleFavorite, restaurants, loadingRestaurants, restaurantError, attribution,
-      refreshRestaurants, searchQuery,
-    ]
-  );
+  const value = useMemo<AppState>(() => ({
+    location, coordinates, onboarded, completeOnboarding, filters, setFilters, patchFilters, resetFilters,
+    favorites, toggleFavorite, restaurants, loadingRestaurants, restaurantError, attribution,
+    refreshRestaurants, requestDeviceLocation, searchQuery, setSearchQuery,
+  }), [
+    location, coordinates, onboarded, completeOnboarding, filters, patchFilters, resetFilters,
+    favorites, toggleFavorite, restaurants, loadingRestaurants, restaurantError, attribution,
+    refreshRestaurants, requestDeviceLocation, searchQuery,
+  ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
